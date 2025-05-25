@@ -1,0 +1,7 @@
+[project]
+name = "cipher-playground"
+version = "0.1.0"
+description = "Learning exercises for lattice-based cryptography, ZK proofs, and folding schemes"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
