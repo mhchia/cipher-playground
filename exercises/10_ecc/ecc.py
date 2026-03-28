@@ -11,7 +11,7 @@ print(f"{E=}")
 
 # by Hasse's theorem, q=|E(F_{37}| is close to p
 
-# 1. find all elements on the curve by enumerating (since x, y \in F_{37})
+# 1. find all elements on the curve by enumerating x, y (since x, y \in F_{37})
 elements: list[tuple[F, F]] = []
 for x in map(F, range(p)):
     rhs = x**3 + 2
