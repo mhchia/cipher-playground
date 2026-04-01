@@ -36,7 +36,7 @@ _order = q - 1
 g = find_generator_from_mul_group(q)
 assert g**_order % q == 1
 nth = 2*d
-# g^o = 1, we know X^{2d} = 1, o
+# g^{order} = 1, we know X^{2d} = 1, order = q-1
 # We want X^d + 1 = 0 -> X^d = -1 mod q -> X^{2d} = 1 mod q,
 # so basically finding a primitive 8th roots of unity.
 # Since g^{order} = 1 mod q and (g^2)^{order/2} = 1, mod q.
