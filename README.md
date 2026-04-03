@@ -26,14 +26,10 @@ exercises/             .py implementations — structured learning progression
   00_sage_basics/      SageMath API cheatsheet
   01_ring_arith/       Polynomial ring arithmetic, NTT
   02_field_ext/        Field extensions (Fp²)
-  03_ajtai/            Ajtai commitment (Module-SIS)
   10_ecc/              Elliptic curve cryptography
   11_pairings/         High-level usage of pairing, G_1, G_2, GT
-  12_poly_commit/      KZG polynomial commitment
+  12_kzg/              KZG polynomial commitment
   13_groth16/          R1CS, QAP, Groth16
-  14_plonk/            Gates, permutation argument, PLONK
-  15_fri/              FRI, Reed-Solomon proximity testing
-  16_zkvm/             Instruction traces, execution proofs
 ```
 
 ## Exercise Progression
@@ -52,7 +48,7 @@ exercises/             .py implementations — structured learning progression
 ### SNARK/STARK track (10–16)
 - [x] 10 — ECC — group law, scalar multiplication
 - [x] 11 — Pairings — High-level usage of pairing, G_1, G_2, GT
-- [ ] 12 — Polynomial commitments / KZG (in progress)
+- [x] 12 — KZG
 - [x] 13 — Groth16 — simplified: no ZK, no public input verification
 - [ ] 14 — PLONK — gates, permutation argument
 - [ ] 15 — FRI — Reed-Solomon proximity testing
