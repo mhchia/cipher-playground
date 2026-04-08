@@ -55,12 +55,13 @@ def standard_ntt():
 
     # coefficient form
     a = gen_random_Rq()
-    coeffs = a.list()
-    print(f"{coeffs=}")
+    a_coeffs = a.list()
+    print(f"{a_coeffs=}")
 
+    # Test: coefficient form to evaluation form with NTT
     # evaluation form (naive)
-    evals_naive = [R(a.lift())(x) for x in roots]
-    print(f"{evals_naive=}")
+    expected_a_evals = [R(a.lift())(x) for x in roots]
+    print(f"{expected_a_evals=}")
 
     def ntt(_coeffs: list[Fq], _roots: list[Fq]) -> list[Fq]:
         # recursion invairant
@@ -92,8 +93,8 @@ def standard_ntt():
             evals[i] = even_evals[w_square_eval_idx] + w * odd_evals[w_square_eval_idx]
         return evals
 
-    evals_ntt = ntt(coeffs, roots)
-    assert evals_ntt == evals_naive, f"{evals_ntt=}, {evals_naive=}"
+    a_evals_ntt = ntt(a_coeffs, roots)
+    assert a_evals_ntt == expected_a_evals, f"{a_evals_ntt=}, {expected_a_evals=}"
 
     def intt(evals: list[int], _roots: list[int]):
         f"""
@@ -118,8 +119,17 @@ def standard_ntt():
         # Times (1/d) which has not yet done
         return [c * d_inv for c in coeffs]
 
-    coeffs_roundtrip = intt(evals_ntt, roots)
-    assert coeffs_roundtrip == coeffs, f"INTT(NTT(poly)) != poly: {coeffs=}, {coeffs_roundtrip=}"
+    # Test: evaluation form to coefficient form with INTT
+    a_coeffs_roundtrip = intt(a_evals_ntt, roots)
+    assert a_coeffs_roundtrip == a_coeffs, f"INTT(NTT(poly)) != poly: {a_coeffs=}, {a_coeffs_roundtrip=}"
+
+    # Test: multiplication in evaluation form and INTT back
+    b = gen_random_Rq()
+    b_evals_ntt = ntt(b.list(), roots)
+    a_times_b_evals_ntt = [a_eval_w * b_eval_w for a_eval_w, b_eval_w in zip(a_evals_ntt, b_evals_ntt)]
+    a_times_b_coeffs_roundtrip = intt(a_times_b_evals_ntt, roots)
+    expected_a_times_b = (a * b).list()
+    assert a_times_b_coeffs_roundtrip == expected_a_times_b, f"a times b through NTT/INTT is not working: {expected_a_times_b=}, {a_times_b_coeffs_roundtrip=}"
 
 
 def negacyclic_ntt():
