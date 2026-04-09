@@ -1,12 +1,8 @@
 #!/usr/bin/env sage
 from sage.all import *
 
-# Exercise 2: NTT / INTT
-# Ring: Z_17[X]/(X⁴ + 1), q=17, d=4
-# Prerequisite: 17 ≡ 1 (mod 8), so a primitive 8th root of unity exists in Z_17
 
-
-# Z_q^* = {1, ..., 16}, which is a cyclic group. First we find a generator
+# Z_q^* = {1, ..., 16}, which is a cyclic group and exists a generator.
 def find_generator_from_mul_group(q: int):
     # if q is prime, order is q-1.
     order = q-1
@@ -26,7 +22,11 @@ def find_root_of_unity(g: int, d: int, q: int) -> int:
     return g**((q-1) // d)
 
 
-def ntt(coeffs: list[int], roots: list[int], q: int) -> list[int]:
+#
+# NTT with X^d - 1
+#
+
+def _ntt_std(coeffs: list[int], omega: int, q: int) -> list[int]:
     """
     NTT with modulus polynomial X^d-1
     """
@@ -34,12 +34,13 @@ def ntt(coeffs: list[int], roots: list[int], q: int) -> list[int]:
     assert (q-1) % d == 0
     Fq = GF(q)
     coeffs = [Fq(v) for v in coeffs]
-    roots = [Fq(v) for v in roots]
+    omega = Fq(omega)
     # recursion invairant
     # ntt(f, w) = ntt(f_even, w^2) + w*ntt(w_odd, w^2)
     cur_d = len(coeffs)
     if cur_d == 1:
         return coeffs
+    roots = [omega**i for i in range(cur_d)]
 
     f_even = [v for i, v in enumerate(coeffs) if i % 2 == 0]
     f_odd = [v for i, v in enumerate(coeffs) if i % 2 == 1]
@@ -52,9 +53,8 @@ def ntt(coeffs: list[int], roots: list[int], q: int) -> list[int]:
     #   w^3   -square->   w^6=w^2 (= 3 % (d/2) = 1)
     # since (w^i)^2 = w^{i % {d/2}}, we only need to calculate f_o, f_e for the first half ([:d/2]),
     # and they can be reused for calculating the final results.
-    next_roots = [roots[i]**2 for i in range(cur_d // 2)]
-    even_evals = ntt(f_even, next_roots, q)
-    odd_evals = ntt(f_odd, next_roots, q)
+    even_evals = _ntt_std(f_even, omega**2, q)
+    odd_evals = _ntt_std(f_odd, omega**2, q)
 
     evals = [0] * cur_d
     for i in range(cur_d):
@@ -65,7 +65,7 @@ def ntt(coeffs: list[int], roots: list[int], q: int) -> list[int]:
     return evals
 
 
-def intt(evals: list[int], _roots: list[int], q: int) -> list[int]:
+def _intt_std(evals: list[int], omega: int, q: int) -> list[int]:
     """
     evaluation form <-> coefficient form is matrix multiplications
         coeff -> eval: [f(w^0), f(w^1)]^T = V * [f_0, f_1]^T
@@ -85,15 +85,19 @@ def intt(evals: list[int], _roots: list[int], q: int) -> list[int]:
     Fq = GF(q)
     # Treat evaluations as polynomial
     # Perform NTT with w^{-i}
-    neg_roots = [r**(-1) for r in _roots]
-    coeffs = ntt(evals, neg_roots, q)
+    inv_omega = Fq(omega)**(-1)
+    coeffs = _ntt_std(evals, inv_omega, q)
     d_inv = Fq(d)**(-1)
     # Times (1/d) which has not yet done
     return [c * d_inv for c in coeffs]
 
 
-def ntt_neg(coeffs: list[int], psi: int, q: int) -> list[int]:
-    f"""
+#
+# NTT with X^d +1
+#
+
+def _ntt_neg(coeffs: list[int], psi: int, q: int) -> list[int]:
+    """
     NTT with modulus polynomial X^d+1.
     In X^d+1 version, we uses roots=[\psi, \psi^3, \psi^5, \psi^7], where \psi is the primitive 2d-th roots of unity.
     It actually just works if we run ntt with `roots` since \psi^2=\psi^5^2 and so is \psi^3.
@@ -111,139 +115,111 @@ def ntt_neg(coeffs: list[int], psi: int, q: int) -> list[int]:
     """
     Fq = GF(q)
     # Need to transform coeffs so we can reuse ntt
-    d = len(coeffs)
     transformed_coeffs = [Fq(c) * (psi**i) for i, c in enumerate(coeffs)]
-    omega = psi ** 2
-    roots = [omega**i for i in range(d)]
-    return ntt(transformed_coeffs, roots, q)
+    return _ntt_std(transformed_coeffs, psi**2, q)
 
 
-def intt_neg(evals: list[int], psi: int, q: int) -> list[int]:
+def _intt_neg(evals: list[int], psi: int, q: int) -> list[int]:
     """
     We can derive the coeffs of a_t from [omega^i, ...] where omega=psi^2
     and transform a_t back to the original a
     """
-    d = len(evals)
     Fq = GF(q)
-    omega = Fq(psi)**2
-    roots = [omega**i for i in range(d)]
-    a_t_coeffs = intt(evals, roots, q)
+    a_t_coeffs = _intt_std(evals, Fq(psi)**2, q)
     psi_inv = Fq(psi)**(-1)
     return [c * (psi_inv**i) for i, c in enumerate(a_t_coeffs)]
 
 
-def standard_ntt():
-    q = 17
-    d = 4
-    print(f"{q=}, {d=}")
-    Fq = GF(q)
-    R = PolynomialRing(Fq, 'X')
-    X = R.gen()
-
-    assert (q-1) % (d) == 0, f"q-1 is not divided by d, no primitive d-th root of unity. {q-1=}, {d=}"
-    Rq = R.quotient(X**d - 1, 'x')
-    x = Rq.gen()
-    # g^{q-1} = 1
+def ntt(coeffs: list[int], Rq) -> list[int]:
+    """
+    Dispatch on Rq.modulus():
+      - X^d - 1  → cyclic _ntt_std with primitive d-th root of unity
+      - X^d + 1  → negacyclic _ntt_neg with primitive 2d-th root of unity
+    """
+    q = Rq.base_ring().order()
+    modulus = Rq.modulus()
+    d = modulus.degree()
+    X = modulus.parent().gen()
     g = find_generator_from_mul_group(q)
-    print(f"{g=}")
-    # find omega s.t. x^d = 1
-    omega = find_root_of_unity(g, d, q)
-    print(f"{omega=}")
-    roots = [omega**i for i in range(d)]
-    print(f"{roots=}")
+    if modulus == X**d - 1:
+        omega = find_root_of_unity(g, d, q)
+        return _ntt_std(coeffs, omega, q)
+    elif modulus == X**d + 1:
+        psi = find_root_of_unity(g, 2*d, q)
+        return _ntt_neg(coeffs, psi, q)
+    else:
+        raise ValueError(f"Unsupported modulus: {modulus}")
 
-    def gen_random_Rq() -> Rq:
-        import random
-        return Rq(sum([(random.randint(0, q-1)) * x**i for i in range(d)]))
 
-    # coefficient form
-    a = gen_random_Rq()
+def intt(evals: list[int], Rq) -> list[int]:
+    """
+    Dispatch on Rq.modulus() (symmetric to ntt).
+    """
+    q = Rq.base_ring().order()
+    modulus = Rq.modulus()
+    d = modulus.degree()
+    X = modulus.parent().gen()
+    g = find_generator_from_mul_group(q)
+    if modulus == X**d - 1:
+        omega = find_root_of_unity(g, d, q)
+        return _intt_std(evals, omega, q)
+    elif modulus == X**d + 1:
+        psi = find_root_of_unity(g, 2*d, q)
+        return _intt_neg(evals, psi, q)
+    else:
+        raise ValueError(f"Unsupported modulus: {modulus}")
+
+
+def _gen_random_Rq(Rq):
+    import random as _random
+    x = Rq.gen()
+    q = Rq.base_ring().order()
+    modulus = Rq.modulus()
+    d = modulus.degree()
+    return Rq(sum([(_random.randint(0, q-1)) * x**i for i in range(d)]))
+
+
+def test_ntt_roundtrip(a, Rq):
     a_coeffs = a.list()
-    print(f"{a_coeffs=}")
-
-    # Test: coefficient form to evaluation form with NTT
-    # evaluation form (naive)
-    expected_a_evals = [R(a.lift())(x) for x in roots]
-    print(f"{expected_a_evals=}")
-
-    a_evals_ntt = ntt(a_coeffs, roots, q)
-    assert a_evals_ntt == expected_a_evals, f"{a_evals_ntt=}, {expected_a_evals=}"
+    a_evals_ntt = ntt(a_coeffs, Rq)
 
     # Test: evaluation form to coefficient form with INTT
-    a_coeffs_roundtrip = intt(a_evals_ntt, roots, q)
+    a_coeffs_roundtrip = intt(a_evals_ntt, Rq)
     assert a_coeffs_roundtrip == a_coeffs, f"INTT(NTT(poly)) != poly: {a_coeffs=}, {a_coeffs_roundtrip=}"
 
     # Test: multiplication in evaluation form and INTT back
-    b = gen_random_Rq()
-    b_evals_ntt = ntt(b.list(), roots, q)
+    b = _gen_random_Rq(Rq)
+    b_evals_ntt = ntt(b.list(), Rq)
     a_times_b_evals_ntt = [a_eval_w * b_eval_w for a_eval_w, b_eval_w in zip(a_evals_ntt, b_evals_ntt)]
-    a_times_b_coeffs_roundtrip = intt(a_times_b_evals_ntt, roots, q)
+    a_times_b_coeffs_roundtrip = intt(a_times_b_evals_ntt, Rq)
     expected_a_times_b = (a * b).list()
     assert a_times_b_coeffs_roundtrip == expected_a_times_b, f"a times b through NTT/INTT is not working: {expected_a_times_b=}, {a_times_b_coeffs_roundtrip=}"
-
-
-def negacyclic_ntt():
-    """
-    Rq is under X**d - 1 and we use the standard roots of unities
-    """
-
-    q = 17
-    d = 4
-    print(f"{q=}, {d=}")
-    Fq = GF(q)
-    R = PolynomialRing(Fq, 'X')
-    X = R.gen()
-
-    assert (q-1) % (2*d) == 0, f"q-1 is not divided by 2d, no primitive 2d-th root of unity. {q-1=}, {d=}"
-    Rq = R.quotient(X**d + 1, 'x')
-    x = Rq.gen()
-    # g^{q-1} = 1
-    g = find_generator_from_mul_group(q)
-    print(f"{g=}")
-    # find omega s.t. x^d = 1
-    psi = find_root_of_unity(g, 2*d, q)
-    print(f"{psi=}")
-    roots = [psi**i for i in range(2*d) if i % 2 == 1]
-    for w in roots:
-        # check if w is primitive 2d-th root
-        assert w**4 == -1
-    print(f"{roots=}")
-
-    def gen_random_Rq() -> Rq:
-        import random
-        return Rq(sum([(random.randint(0, q-1)) * x**i for i in range(d)]))
-
-    # coefficient form
-    a = gen_random_Rq()
-    a_coeffs = a.list()
-    print(f"{a_coeffs=}")
-
-    # Test: coefficient form to evaluation form with NTT
-    # evaluation form (naive)
-    expected_a_evals = [R(a.lift())(x) for x in roots]
-    print(f"{expected_a_evals=}")
-
-    a_evals_ntt = ntt_neg(a_coeffs, psi, q)
-    assert a_evals_ntt == expected_a_evals, f"{a_evals_ntt=}, {expected_a_evals=}"
-
-    # Test: evaluation form to coefficient form with INTT
-    a_coeffs_roundtrip = intt_neg(a_evals_ntt, psi, q)
-    assert a_coeffs_roundtrip == a_coeffs, f"INTT(NTT(poly)) != poly: {a_coeffs=}, {a_coeffs_roundtrip=}"
-
-    # Test: multiplication in evaluation form and INTT back
-    b = gen_random_Rq()
-    b_evals_ntt = ntt_neg(b.list(), psi, q)
-    a_times_b_evals_ntt = [a_eval_w * b_eval_w for a_eval_w, b_eval_w in zip(a_evals_ntt, b_evals_ntt)]
-    a_times_b_coeffs_roundtrip = intt_neg(a_times_b_evals_ntt, psi, q)
-    expected_a_times_b = (a * b).list()
-    assert a_times_b_coeffs_roundtrip == expected_a_times_b, f"a times b through NTT/INTT is not working: {expected_a_times_b=}, {a_times_b_coeffs_roundtrip=}"
-
 
 
 def main():
-    # standard_ntt()
-    negacyclic_ntt()
-    pass
+    q = 17
+    d = 4
+    print(f"{q=}, {d=}")
+    Fq = GF(q)
+    R = PolynomialRing(Fq, 'X')
+    X = R.gen()
+
+    def test_ntt():
+        Rq = R.quotient(X**d -1, 'x')
+        a = _gen_random_Rq(Rq)
+        a_coeffs = a.list()
+        print(f"{a_coeffs=}")
+        test_ntt_roundtrip(a, Rq)
+
+    def test_ntt_neg():
+        Rq = R.quotient(X**d+1, 'x')
+        a = _gen_random_Rq(Rq)
+        a_coeffs = a.list()
+        print(f"{a_coeffs=}")
+        test_ntt_roundtrip(a, Rq)
+
+    test_ntt()
+    test_ntt_neg()
 
 
 if __name__ == "__main__":
