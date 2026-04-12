@@ -6,9 +6,19 @@ Learning exercises for lattice-based cryptography, ZK proof systems, and folding
 
 This project uses **SageMath 10.7** (bundles Python 3.13).
 
+### Install sage
+Make sure you're installed sage.
+```bash
+# Install SageMath (macOS)
+brew install --cask sage
+sage --version
+```
+
+### Run a script
+
 ```bash
 # Run a script
-sage -python exercises/04_ajtai/ajtai.py
+sage exercises/04_ajtai/ajtai.py
 
 # Open Jupyter
 sage -sh -c "jupyter lab"
@@ -38,9 +48,9 @@ exercises/             .py implementations — structured learning progression
 
 ### Lattice track (01–09)
 - [x] 01 — Polynomial arithmetic in Z_q[X]/(X^d + 1), norm
-- [ ] 02 — NTT / INTT (in progress)
+- [x] 02 — NTT / INTT (standard + negacyclic)
 - [x] 03 — Field extensions (Fp²)
-- [ ] 04 — Ajtai commitment (in progress)
+- [x] 04 — Ajtai commitment (M-SIS), SIS experiment
 - [ ] 05 — Embedding comparison (NTT vs coefficient)
 - [ ] 06 — Sumcheck (toy version)
 - [ ] 07 — Simple folding step
