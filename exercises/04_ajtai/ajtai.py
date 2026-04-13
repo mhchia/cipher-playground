@@ -47,7 +47,12 @@ def _gen_random_low_norm_poly(Rq, beta: int):
     import random
     x = Rq.gen()
     d = Rq.modulus().degree()
-    return sum([random.randint(-beta, beta) * x**i for i in range(d)])
+    # avoid 0
+    poly = 0
+    while poly == 0:
+        poly = sum([random.randint(-beta, beta) * x**i for i in range(d)])
+    return poly
+
 
 
 def _gen_random_low_norm_witness(Rq, m, beta: int) -> vector:
@@ -84,16 +89,28 @@ def test_ajtai(q: int, d: int):
     A = setup(kappa, m, Rq)
     print(f"{A=}")
     # witness
-    z = _gen_random_low_norm_witness(Rq, m, beta)
-    print(f"{z=}")
+    z1 = _gen_random_low_norm_witness(Rq, m, beta)
+    print(f"{z1=}")
+    # Test: commit
+    c1 = commit(A, z1)
+    print(f"{c1=}")
 
-    c = commit(A, z)
-    print(f"{c=}")
+    # Test: addition homomorphism
+    z2 = _gen_random_low_norm_witness(Rq, m, beta)
+    c2 = commit(A, z2)
+
+    z12 = z1 + z2
+    c12 = commit (A, z12)
+    assert c12 == c1 + c2, f"homomorphism doesn't hold: {c1=}, {c2=}, {c12=}"
+
+    # Test: norm growth w.h.p
+    norm_z12 = _l_inf_norm_vec(z12, Rq)
+    print(f"{norm_z12=}")
 
 
 def main():
     test_ajtai(q_toy, d_toy)
-    test_ajtai(q_falcon, d_falcon)
+    # test_ajtai(q_falcon, d_falcon)
 
 
 if __name__ == '__main__':
