@@ -157,16 +157,14 @@ def sumcheck(mle, xs, l: int, d: int = 2):
 
         # P: store r for next round
         received_randoms.append(r)
-    # After the loop, V has `a` (a_l = g_{l-1}(r_{l-1}))
-    # Since V is not sure if g_{l-1}(x) = f(r_0,...,r_{l-2}, x)
-    # V still needs to check if a = f(r_0, ..., r_{l-1})
+    # NOTE: After the loop, V has `a` (a_l = g_{l-1}(r_{l-1}))
+    # Since V is not sure if g_{l-1}(x) = f(r_0,...,r_{l-2}, x),
+    # V still needs to check `a ?= f(r_0, ..., r_{l-1})`
     return a
 
-
+# TODO: V still needs to check `a ?= f(r_0, ..., r_{l-1})`!
 a = sumcheck(mle_t, xs, l_t)
 print(f"{a=}")
-
-
 
 
 # mle_w = mle(w_padded, l)
