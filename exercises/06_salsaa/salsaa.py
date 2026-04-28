@@ -76,17 +76,19 @@ def main():
 
 
     # ============================================================
-    # 2. MLE (Multilinear Extension)
-    # ============================================================
-    w_pad, xs = mle(w)
-
-    # ============================================================
-    # 3. Sumcheck protocol
+    # Sumcheck protocol
     # ============================================================
 
     # TODO: V still needs to check `a ?= f(r_0, ..., r_{l-1})`!
-    a, rs = sumcheck(w_pad, xs)
+    a, rs = sumcheck(w)
     print(f"{a=}, {rs=}")
+
+
+    # ============================================================
+    # 4. CCS (Customizable Constraint System)
+    # ============================================================
+
+    # TODO: convert R1CS to CCS
 
 
     # ============================================================
@@ -96,12 +98,6 @@ def main():
     # TODO: define C_small, sample challenges
 
 
-
-    # ============================================================
-    # 4. CCS (Customizable Constraint System)
-    # ============================================================
-
-    # TODO: convert R1CS to CCS
 
 
     # ============================================================
@@ -131,13 +127,16 @@ def main():
     # # print(f"Ajtai commit OK: {c=}")
 
 
-def sumcheck(mle, xs, d: int = 2):
+def sumcheck(f: vector, d: int = 2):
+    mle_t, xs = lde(f)
     # Claim: \sum_{b_0}...\sum_{b_{l-1}} f(b_0, ..., b_{l-1}) = a_j
     # P calculate the first a_j (a_0) and send it to V
     l = len(xs)
+    # a_j, a at loop j
+    # sum over [d]^l
     a = 0
     for b in itertools.product(range(d), repeat=l):
-        a += mle.subs({xs[i]: b[i] for i in range(l)})
+        a += mle_t.subs({xs[i]: b[i] for i in range(l)})
 
     received_randoms = []
     for j in range(l):
@@ -145,41 +144,43 @@ def sumcheck(mle, xs, d: int = 2):
         # Prover
         #
         # Let the variate i be X and sum the rest of the variates over hypercube.
-        # let h_0(x) = \sum_{b_1} ... \sum_{b_{l-1}} f(x, b_1, ..., b_{l-1})
-        # P calculate h_0(x) and send it to V as g_0(x)
+        # let h_j(x) = \sum_{b_{j+1}} ... \sum_{b_{l-1}} f(r_0, ..., r_{j-1}, x, b_{j+1}, ..., b_{l-1})
+        # P calculate h_j(x) and send it to V as g_j(x)
         rs = {
             xs[i]: v for i, v in enumerate(received_randoms)
         }
         # Sum of all g evaluation from position j+1 to l-1
-        # g_j(x) = f(r_0, ..., r_{j-1}, x, 0, ..., 0) + f(r_0, ..., r_{j-1}, x, 0, ..., 1) +...
-        g = 0
+        # h_j(x) = f(r_0, ..., r_{j-1}, x, 0, ..., 0) + f(r_0, ..., r_{j-1}, x, 0, ..., 1) +...
+        h = 0
         for b in itertools.product(range(d), repeat=l-1-j):
             bs = {
                 xs[i+j+1]: b[i] for i in range(l-1-j)
             }
-            g += mle.subs({**rs, **bs})
+            h += mle_t.subs({**rs, **bs})
 
         # Send `g_j` to V
+        g = h
 
         #
         # Verifier
         #
 
-        # V is not sure if g_0(x) = h_0(x) as P claimed
-        #   and needs to verify by
-        #   1. c = g_0(0) + g_0(1)
-        #   2. g_j(r) ?= \sum_{b_2} ... \sum_{b_{l-1}} f(r, b_2, ..., b_{l-1}), by SZPL
+        # V is not sure if g_j(x) = h_j(x) as P claimed
+        #   and needs to verify
+        #   1. a_j = g_j(0) + ... + g_j(d-1)
+        #   2. g_j(r) ?= \sum_{b_{j+1}} ... \sum_{b_{l-1}} f(r_0, ..., r_j, b_{j+1}, ..., b_{l-1}), by SZPL
         #       - this is done by P running sumcheck again
 
-        # Step 1, c ?= g_0(0) + g_0(1)
+        # Step 1. a_j = g_j(0) + ... + g_j(d-1)
         assert a == sum([g.subs({xs[j]: i}) for i in range(d)])
 
-        # Step 2. g_j(r) ?= \sum_{b_{j+1}} ... \sum_{b_{l-1}} f(r_0,...,r_{j-1}, r, b_{j+1}, ..., b_{l-1})
+        # Step 2. g_j(r) ?= \sum_{b_{j+1}} ... \sum_{b_{l-1}} f(r_0, ..., r, b_{j+1}, ..., b_{l-1})
+        # Sample r_j and calculate a_j = g_j(r)
         r = rand.randint(0, q-1)
         a = g.subs({xs[j]: r})
-        # Send r to P
+        # Send r_j to P
 
-        # P: store r for next round
+        # P: store r_j for next round
         received_randoms.append(r)
     # NOTE: After the loop, V has `a` (a_l = g_{l-1}(r_{l-1}))
     # Since V is not sure if g_{l-1}(x) = f(r_0,...,r_{l-2}, x),
@@ -187,20 +188,19 @@ def sumcheck(mle, xs, d: int = 2):
     return a, received_randoms
 
 
-
-# Practice a bit of MLE
-def get_l_and_padded(w: vector):
-    # First padding w to 8 elements so we have {0,1}^3
+# Pad w to size 2^l to make it on hypercube
+def pad_vec_to_d_exp(w: vector, d: int = 2):
+    # First padding w to 8 elements so we have [d]^3
     len_w = len(w)
     l = 0
-    while 2**l < len_w:
+    while d**l < len_w:
         l += 1
-    w_padded = vector(Fq, list(w) + [Fq(0)]*(2**l - len_w))
+    w_padded = vector(Fq, list(w) + [Fq(0)]*(d**l - len_w))
     return w_padded, l
 
 
-def mle(f: vector):
-    f_pad, l = get_l_and_padded(f)
+def lde(f: vector, d: int = 2):
+    f_pad, l = pad_vec_to_d_exp(f)
 
     # Prepare for MLE/sumcheck for fields
     P = PolynomialRing(Fq, [f"x{i}" for i in range(l)])
@@ -209,7 +209,7 @@ def mle(f: vector):
     #   \sum_{w \in {0,1}^l} eq(x, w) * f(w)
     # = \sum_{w \in {0,1}^l} {\prod_{i \in l} ((1-x_i)(1-w_i) + x_i*w_i)} f(w)
     tilde_f = 0
-    for w in range(0, 2**l):
+    for w in range(0, d**l):
         # i \in {0,1}^l. e.g. i = (b_1, .., b_l)
         eq = 1
         # eq(x, w): are x and w the same for all bits?
@@ -227,7 +227,7 @@ def test_mle():
     # Test: mle of [1,2,8,10]
     t = [1,2,8,10]
 
-    mle_t, xs = mle(t)
+    mle_t, xs = lde(t)
     l = len(xs)
     print(f"{xs=}")
 

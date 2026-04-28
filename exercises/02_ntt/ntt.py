@@ -182,6 +182,7 @@ def _gen_random_Rq(Rq):
 def test_ntt_roundtrip(a, Rq):
     a_coeffs = a.list()
     a_evals_ntt = ntt(a_coeffs, Rq)
+    print(f"{a_evals_ntt=}")
 
     # Test: evaluation form to coefficient form with INTT
     a_coeffs_roundtrip = intt(a_evals_ntt, Rq)
@@ -199,6 +200,9 @@ def test_ntt_roundtrip(a, Rq):
 def main():
     q = 17
     d = 4
+
+    # q = 12289
+    # d = 1024
     print(f"{q=}, {d=}")
     Fq = GF(q)
     R = PolynomialRing(Fq, 'X')
