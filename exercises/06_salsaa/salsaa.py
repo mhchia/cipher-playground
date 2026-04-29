@@ -126,12 +126,17 @@ def main():
     # # print(f"Ajtai commit OK: {c=}")
 
 
-def lde_eval(w: vector, xs: vector, d: int):
+def lde_poly(w: vector, d: int):
     """
-    Evaluate LDE[w](xs[0], ..., xs[l-1])
+    Build LDE[w] as a symbolic multivariate polynomial over [d]^l using Lagrange basis.
+    Returns (polynomial, xs) where xs are the symbolic variables.
     """
     # Pad w to size=d^l
     w_pad, l = pad_vec_to_d_exp(w, d)
+
+    P = PolynomialRing(Fq, [f"x{i}" for i in range(l)])
+    xs = P.gens()
+
     #
     # Prepare for eqs
     # [
@@ -145,13 +150,12 @@ def lde_eval(w: vector, xs: vector, d: int):
         # xi_eq_k = (eq(x_j, 0), ..., eq(x_j, d-1))
         xi_eq_k = []
         for k in range(d):
-            # k = 0
             lagrange = prod([
                 (xs[j] - k_prime) / (Fq(k) - k_prime)
                 for k_prime in range(d) if k_prime != k
             ])
             xi_eq_k.append(lagrange)
-        eqs.append(vector(Fq, xi_eq_k))
+        eqs.append(xi_eq_k)
 
     # Do tensor product on our own
 
@@ -162,16 +166,16 @@ def lde_eval(w: vector, xs: vector, d: int):
         # eq(x, (0,..., 0)) = eq(x_0, 0) * ... * eq(x_{l-1}, 0)
         eq = prod([eqs[j][idx[j]] for j in range(l)])
         eqs_flat.append(eq)
-    eqs_flat = vector(Fq, eqs_flat)
 
     # <w, tensor(r)>
     # res = <w, eqs_flat>
     #     = w_0*eq(x, (0,..., 0)) + ... + w_{d^l-1}*eq(x, (d-1, ..., d-1)
-    return w_pad.dot_product(eqs_flat)
+    tilde_f = sum(w_pad[i] * eqs_flat[i] for i in range(d**l))
+    return tilde_f, xs
 
 
 def sumcheck(f: vector, d: int):
-    mle_t, xs = lde(f)
+    mle_t, xs = lde_poly(f, d)
     # Claim: \sum_{b_0}...\sum_{b_{l-1}} f(b_0, ..., b_{l-1}) = a_j
     # P calculate the first a_j (a_0) and send it to V
     l = len(xs)
@@ -232,7 +236,7 @@ def sumcheck(f: vector, d: int):
 
 
 # Pad w to size d^l to make it on hypercube
-def pad_vec_to_d_exp(w: vector, d: int = 2):
+def pad_vec_to_d_exp(w: vector, d: int):
     # First padding w to 8 elements so we have [d]^3
     len_w = len(w)
     l = 0
@@ -242,62 +246,45 @@ def pad_vec_to_d_exp(w: vector, d: int = 2):
     return w_padded, l
 
 
-def lde(f: vector, d: int = 2):
-    f_pad, l = pad_vec_to_d_exp(f)
-
-    # Prepare for MLE/sumcheck for fields
-    P = PolynomialRing(Fq, [f"x{i}" for i in range(l)])
-    xs = P.gens()
-
-    #   \sum_{w \in {0,1}^l} eq(x, w) * f(w)
-    # = \sum_{w \in {0,1}^l} {\prod_{i \in l} ((1-x_i)(1-w_i) + x_i*w_i)} f(w)
-    tilde_f = 0
-    for w in range(0, d**l):
-        # i \in {0,1}^l. e.g. i = (b_1, .., b_l)
-        eq = 1
-        # eq(x, w): are x and w the same for all bits?
-        # starting from bit 0 to bit l-1
-        # MSB: we map b_0*2^2 + b_1*1 to (b_0, b_1)
-        for i in range(l):
-            w_i = (w >> (l-i-1)) & 1
-            eq *= (1 - xs[i]) * (1 - w_i) + xs[i] * w_i
-        tilde_f += eq * f_pad[w]
-    return tilde_f, xs
-
-
-def test_lde_eval():
+def test_lde_poly():
     # Test with multiple d values on the same w
     w = vector(Fq, [1, 2, 8, 10, 3, 5])
 
     for d in [2, 3, 4]:
         w_pad, l = pad_vec_to_d_exp(w, d)
-        print(f"test_lde_eval: {d=}, {l=}, len(w_pad)={len(w_pad)}")
+        poly, xs = lde_poly(w, d)
 
         # Every point in [d]^l should recover the padded value
         for bit_repr in itertools.product(range(d), repeat=l):
             bit_repr_reversed = bit_repr[::-1]
             idx = sum([bit * d**i for i, bit in enumerate(bit_repr_reversed)])
-            assert w_pad[idx] == lde_eval(w, bit_repr, d), \
-                f"lde_eval mismatch at {bit_repr=}, {d=}: expected {w_pad[idx]}, got {lde_eval(w, bit_repr, d)}"
+            val = poly.subs({xs[i]: bit_repr[i] for i in range(l)})
+            assert w_pad[idx] == val, \
+                f"lde_poly mismatch at {bit_repr=}, {d=}: expected {w_pad[idx]}, got {val}"
 
     # Test: size already equals d^l (no padding needed)
     w_exact = vector(Fq, [1, 2, 3, 4])
     for d in [2, 4]:
         w_pad, l = pad_vec_to_d_exp(w_exact, d)
+        poly, xs = lde_poly(w_exact, d)
         assert len(w_pad) == len(w_exact) or w_pad[len(w_exact):] == vector(Fq, [0]*(len(w_pad)-len(w_exact)))
         for bit_repr in itertools.product(range(d), repeat=l):
             bit_repr_reversed = bit_repr[::-1]
             idx = sum([bit * d**i for i, bit in enumerate(bit_repr_reversed)])
-            assert w_pad[idx] == lde_eval(w_exact, bit_repr, d)
+            assert w_pad[idx] == poly.subs({xs[i]: bit_repr[i] for i in range(l)})
 
     # Test: single element
     w_single = vector(Fq, [7])
     for d in [2, 3]:
-        assert lde_eval(w_single, (0,), d) == Fq(7)
+        poly, xs = lde_poly(w_single, d)
+        if len(xs) == 0:
+            assert poly == Fq(7)
+        else:
+            assert poly.subs({xs[0]: 0}) == Fq(7)
 
 
 def tests():
-    test_lde_eval()
+    test_lde_poly()
     # test_mle()
 
 if __name__ == '__main__':
