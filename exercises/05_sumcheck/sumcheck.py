@@ -12,6 +12,15 @@ q = 17
 Fq = GF(q)
 
 
+def sum_over_hypercube(poly, xs, fixed: dict, d: int, start: int, end: int):
+    """Substitute fixed values, then sum over xs[start:end] ∈ [d]^(end-start)."""
+    result = 0
+    for b in itertools.product(range(d), repeat=end-start):
+        subs = {**fixed, **{xs[start+i]: b[i] for i in range(end-start)}}
+        result += poly.subs(subs)
+    return result
+
+
 def sumcheck(f: vector, d: int = 2):
     mle_t, xs = lde(f)
     # Claim: \sum_{b_0}...\sum_{b_{l-1}} f(b_0, ..., b_{l-1}) = a_j
@@ -19,9 +28,7 @@ def sumcheck(f: vector, d: int = 2):
     l = len(xs)
     # a_j, a at loop j
     # sum over [d]^l
-    a = 0
-    for b in itertools.product(range(d), repeat=l):
-        a += mle_t.subs({xs[i]: b[i] for i in range(l)})
+    a = sum_over_hypercube(mle_t, xs, {}, d, start=0, end=l)
     res = a
 
     received_randoms = []
@@ -29,23 +36,14 @@ def sumcheck(f: vector, d: int = 2):
         #
         # Prover
         #
-        # Let the variate i be X and sum the rest of the variates over hypercube.
+        # Let the variate j be X and sum the rest of the variates over [d].
         # let h_j(x) = \sum_{b_{j+1}} ... \sum_{b_{l-1}} f(r_0, ..., r_{j-1}, x, b_{j+1}, ..., b_{l-1})
         # P calculate h_j(x) and send it to V as g_j(x)
-        rs = {
-            xs[i]: v for i, v in enumerate(received_randoms)
-        }
-        # Sum of all g evaluation from position j+1 to l-1
+        rs = {xs[i]: v for i, v in enumerate(received_randoms)}
         # h_j(x) = f(r_0, ..., r_{j-1}, x, 0, ..., 0) + f(r_0, ..., r_{j-1}, x, 0, ..., 1) +...
-        h = 0
-        for b in itertools.product(range(d), repeat=l-1-j):
-            bs = {
-                xs[i+j+1]: b[i] for i in range(l-1-j)
-            }
-            h += mle_t.subs({**rs, **bs})
+        g = sum_over_hypercube(mle_t, xs, rs, d, start=j+1, end=l)
 
         # Send `g_j` to V
-        g = h
 
         #
         # Verifier
