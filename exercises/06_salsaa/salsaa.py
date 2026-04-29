@@ -17,9 +17,10 @@ from ntt import ntt, intt
 # ============================================================
 
 # Ring setup
+# R_q = Z_q[X]/(X^d+1)
 q = 17
-d = 4
 Fq = GF(q)
+d = 4
 R = PolynomialRing(Fq, 'X')
 X = R.gen()
 Rq = R.quotient(X**d + 1, 'x')
@@ -32,9 +33,6 @@ beta = 1
 
 print(f"SALSAA setup: Rq = Z_{q}[X]/(X^{d}+1), kappa={kappa}, m={m}, beta={beta}")
 
-
-def lde_eval(f: vector, l: int, d: int):
-    pass
 
 
 def main():
@@ -80,15 +78,8 @@ def main():
     # ============================================================
 
     # TODO: V still needs to check `a ?= f(r_0, ..., r_{l-1})`!
-    a, rs = sumcheck(w)
+    a, rs = sumcheck(w, d=2)
     print(f"{a=}, {rs=}")
-
-
-    # ============================================================
-    # 4. CCS (Customizable Constraint System)
-    # ============================================================
-
-    # TODO: convert R1CS to CCS
 
 
     # ============================================================
@@ -118,6 +109,14 @@ def main():
     # 7. Folding
     # ============================================================
 
+
+    # ============================================================
+    # 4. CCS (Customizable Constraint System)
+    # ============================================================
+
+    # TODO: convert R1CS to CCS
+
+
     # TODO: fold two CCS instances
 
     # # Verify imports work
@@ -127,7 +126,51 @@ def main():
     # # print(f"Ajtai commit OK: {c=}")
 
 
-def sumcheck(f: vector, d: int = 2):
+def lde_eval(w: vector, xs: vector, d: int):
+    """
+    Evaluate LDE[w](xs[0], ..., xs[l-1])
+    """
+    # Pad w to size=d^l
+    w_pad, l = pad_vec_to_d_exp(w, d)
+    #
+    # Prepare for eqs
+    # [
+    #   [eq(x_0, 0), ..., eq(x_0, d-1)],
+    #   ...,
+    #   [eq(x_{l-1}, 0), ..., eq(x_{l-1}, d-1)],
+    # ]
+    eqs = []
+    for j in range(l):
+        # in the end of this loop
+        # xi_eq_k = (eq(x_j, 0), ..., eq(x_j, d-1))
+        xi_eq_k = []
+        for k in range(d):
+            # k = 0
+            lagrange = prod([
+                (xs[j] - k_prime) / (Fq(k) - k_prime)
+                for k_prime in range(d) if k_prime != k
+            ])
+            xi_eq_k.append(lagrange)
+        eqs.append(vector(Fq, xi_eq_k))
+
+    # Do tensor product on our own
+
+    # eqs_flat = [eq(x, (0,..., 0)), eq(x, (d-1, ..., d-1)]
+    eqs_flat = []
+    for idx in itertools.product(range(d), repeat=l):
+        # e.g. idx = (0, ..., 0)
+        # eq(x, (0,..., 0)) = eq(x_0, 0) * ... * eq(x_{l-1}, 0)
+        eq = prod([eqs[j][idx[j]] for j in range(l)])
+        eqs_flat.append(eq)
+    eqs_flat = vector(Fq, eqs_flat)
+
+    # <w, tensor(r)>
+    # res = <w, eqs_flat>
+    #     = w_0*eq(x, (0,..., 0)) + ... + w_{d^l-1}*eq(x, (d-1, ..., d-1)
+    return w_pad.dot_product(eqs_flat)
+
+
+def sumcheck(f: vector, d: int):
     mle_t, xs = lde(f)
     # Claim: \sum_{b_0}...\sum_{b_{l-1}} f(b_0, ..., b_{l-1}) = a_j
     # P calculate the first a_j (a_0) and send it to V
@@ -188,7 +231,7 @@ def sumcheck(f: vector, d: int = 2):
     return a, received_randoms
 
 
-# Pad w to size 2^l to make it on hypercube
+# Pad w to size d^l to make it on hypercube
 def pad_vec_to_d_exp(w: vector, d: int = 2):
     # First padding w to 8 elements so we have [d]^3
     len_w = len(w)
@@ -222,27 +265,40 @@ def lde(f: vector, d: int = 2):
     return tilde_f, xs
 
 
-def test_mle():
+def test_lde_eval():
+    # Test with multiple d values on the same w
+    w = vector(Fq, [1, 2, 8, 10, 3, 5])
 
-    # Test: mle of [1,2,8,10]
-    t = [1,2,8,10]
+    for d in [2, 3, 4]:
+        w_pad, l = pad_vec_to_d_exp(w, d)
+        print(f"test_lde_eval: {d=}, {l=}, len(w_pad)={len(w_pad)}")
 
-    mle_t, xs = lde(t)
-    l = len(xs)
-    print(f"{xs=}")
+        # Every point in [d]^l should recover the padded value
+        for bit_repr in itertools.product(range(d), repeat=l):
+            bit_repr_reversed = bit_repr[::-1]
+            idx = sum([bit * d**i for i, bit in enumerate(bit_repr_reversed)])
+            assert w_pad[idx] == lde_eval(w, bit_repr, d), \
+                f"lde_eval mismatch at {bit_repr=}, {d=}: expected {w_pad[idx]}, got {lde_eval(w, bit_repr, d)}"
 
-    # check with known result
-    assert mle_t == 1 * (1-xs[0])*(1-xs[1]) + 2 * (1-xs[0])*xs[1] + 8 * xs[0] * (1-xs[1]) + 10 * xs[0] * xs[1]
-    # \sum_z mle[t][z] = sum(t)
-    sum_mle = sum([
-        mle_t.subs({xs[i]: b[i] for i in range(l)})
-        for b in itertools.product(range(2), repeat=l)
-    ])
-    assert sum_mle == sum(t)
+    # Test: size already equals d^l (no padding needed)
+    w_exact = vector(Fq, [1, 2, 3, 4])
+    for d in [2, 4]:
+        w_pad, l = pad_vec_to_d_exp(w_exact, d)
+        assert len(w_pad) == len(w_exact) or w_pad[len(w_exact):] == vector(Fq, [0]*(len(w_pad)-len(w_exact)))
+        for bit_repr in itertools.product(range(d), repeat=l):
+            bit_repr_reversed = bit_repr[::-1]
+            idx = sum([bit * d**i for i, bit in enumerate(bit_repr_reversed)])
+            assert w_pad[idx] == lde_eval(w_exact, bit_repr, d)
+
+    # Test: single element
+    w_single = vector(Fq, [7])
+    for d in [2, 3]:
+        assert lde_eval(w_single, (0,), d) == Fq(7)
 
 
 def tests():
-    test_mle()
+    test_lde_eval()
+    # test_mle()
 
 if __name__ == '__main__':
     tests()
