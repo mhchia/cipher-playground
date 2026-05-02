@@ -150,7 +150,9 @@ def rok_bar_sum(H, F, Y, t, W):
     # since (LDE[W] * LDE[\bar W])(r) = LDE[W](r) * LDE[\bar W](r) = s_0 * \bar s_1
 
     # Since all r*d/e slots uses the same challenge [r_0, ..., r_{l-1}] in sumcheck,
-    # All NTT slots should be
+    # To evaluate them in Rq, we just get r_j_rq = iNTT([r_j, ..., r_j)]),
+    # the coefficient form of r_j corresponding in Rq
+    # Then we can use r_0_rq, ..., r_{l-1}_rq to evaluate LDE[W] at them.
     l = len(xs)
     r_T = []
     for j in range(l):
@@ -173,10 +175,9 @@ def rok_bar_sum(H, F, Y, t, W):
     # s_0_ntts = [ntt(rq.list(), Rq) for rq in s_0_rqs]
     print(f"{s0_rqs=}")
 
-    r_T_bar = [conjugate(_r) for _r in r_T]
     # evaluate s_1 = LDE[W](\bar r) \in R_q^r
     s1_rqs = [
-        lde_w_i.subs({xs[j]: r_T_bar[j] for j in range(l)})
+        lde_w_i.subs({xs[j]: conjugate(r_T[j]) for j in range(l)})
         for lde_w_i in lde_W
     ]
     # s_1_bar_ntts = [ntt(rq.list(), Rq) for rq in s_1_bar_rqs]
