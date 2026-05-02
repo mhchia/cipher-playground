@@ -54,17 +54,17 @@ print(f"SALSAA setup: Rq = Z_{q}[X]/(X^{d}+1), kappa={kappa}, m={m}, beta={beta}
 
 
 def get_W(m: int, r: int):
-    # Hardcoded for debugging
-    W = matrix(Rq, [
-        [16*x**2 + 16*x + 1,       x**2 + 16*x + 1],
-        [16*x**3 + 16*x + 1,           16*x**2 + 1],
-    ])
-    assert W.nrows() == m
-    assert W.ncols() == r
-    return W
-    # MS = MatrixSpace(Rq, m, r)
-    # W = MS([ _gen_random_low_norm_poly(Rq, beta) for _ in range(r * m) ])
+    # # Hardcoded for debugging
+    # W = matrix(Rq, [
+    #     [16*x**2 + 16*x + 1,       x**2 + 16*x + 1],
+    #     [16*x**3 + 16*x + 1,           16*x**2 + 1],
+    # ])
+    # assert W.nrows() == m
+    # assert W.ncols() == r
     # return W
+    MS = MatrixSpace(Rq, m, r)
+    W = MS([ _gen_random_low_norm_poly(Rq, beta) for _ in range(r * m) ])
+    return W
 
 
 def get_u_vec(Fq, r: int, d: int, e: int):
@@ -77,6 +77,7 @@ def conjugate(r):
 
 def rok_bar_sum(H, F, Y, t, W):
     # W = [w_0, ..., w_{r-1}], w_i \in R^m
+    r = W.ncols()
 
     # We handle one column a time, and concatenate all of them in the end.
     def calculate_CRT_LDE_w_LDE_bar_w(col_idx: int):
@@ -92,10 +93,10 @@ def rok_bar_sum(H, F, Y, t, W):
         print(f"{lde_w_times_w_bar=}")
 
         # \tilde f (x_0, x_1) = A + B x_0 + C x_1 + D x_0 x_1  , A, B, C, D \in R_q
-        coeff_Rqs = lde_w_times_w_bar.coefficients()
+        coeff_rqs = lde_w_times_w_bar.coefficients()
         #   [NTT(A), NTT(B), NTT(C), NTT(D)]
         # = [(a_0, a_1, a_2, a_3), (b_0, b_1, b_2, b_3), (c_0, c_1, c_2, c_3), (d_0, d_1, d_2, d_3)]
-        coeff_Ntts = [ntt(rq.list(), Rq) for rq in coeff_Rqs]
+        coeff_ntts = [ntt(rq.list(), Rq) for rq in coeff_rqs]
 
         # \tilde f_\text{slot_0} (x_0, x_1) = a_0 + b_0 x_0 + c_0 x_1 + d_0 x_0 x_1
         # ...
@@ -104,39 +105,109 @@ def rok_bar_sum(H, F, Y, t, W):
         tilde_fs = []
         for i in range(d // e):
             tilde_f_slot_i = sum([
-                coeff_Ntts[j][i] * m
+                coeff_ntts[j][i] * m
                 for j, m in enumerate(lde_w_times_w_bar.monomials())
             ])
             tilde_fs.append(tilde_f_slot_i)
-        return tilde_fs, xs
+        return lde_w, tilde_fs, xs
 
     # Get CRT(LDE[w]*LDE[\bar w]) for each column, and concatenate all of them into one list
     crt_LDE_W_LDE_bar_W = []
-    for i in range(W.ncols()):
-        tilde_fs_i, xs = calculate_CRT_LDE_w_LDE_bar_w(i)
+    lde_W = []
+    for i in range(r):
+        lde_w_i, tilde_fs_i, xs = calculate_CRT_LDE_w_LDE_bar_w(i)
         crt_LDE_W_LDE_bar_W.extend(tilde_fs_i)
+        lde_W.append(lde_w_i)
     # xs is reused from last iteration, they're all the same
     assert len(crt_LDE_W_LDE_bar_W) != 0, "empty W and thus xs is not existing!"
 
-    # u^T: [u^0, u^1, ..., u^{rd/e}
-    u = get_u_vec(Fq, r, d, e)
+    # Challenges in RLC for all NTT slots
+    # We have a LDE for each column w_i \in W=[w_1, ..., w_r] and
+    # we split that LDE into d/e NTT slots f_\text{slot_0}, ..., f_\text{slot_3}
+    # So in total there are r*d/e slots (F_{q^e})
+    # u^T: [u^0, u^1, ..., u^{rd/e}]
+    u_T = get_u_vec(Fq, r, d, e)
+    print(f"{u_T=}")
 
+    assert len(u_T) == len(crt_LDE_W_LDE_bar_W), "u_T length mismatch crt_LDE_W_LDE_bar_W"
+
+    # RLC (Randomly Linear Combination) all r*d/e LDE per NTT slot
+    # \tilde f = u^0 \tilde f_0 + ... + u^{r*d/e-1} \tilde f_{r*d/e-1}
     tilde_f = sum([
         u_i * tilde_f_i
-        for u_i, tilde_f_i in zip(u, crt_LDE_W_LDE_bar_W)
+        for u_i, tilde_f_i in zip(u_T, crt_LDE_W_LDE_bar_W)
     ])
     print(f"{tilde_f=}")
 
-    res, rands = sumcheck(tilde_f, xs, D)
-    print(f"{res=}, {rands=}")
+    a_0, a_l, rands = sumcheck(tilde_f, xs, D)
+    print(f"sumcheck: {a_0=}, {a_l=}, {rands=}")
 
-    # TODO: verify result from sumcheck
-    #   1. get r^T from CRT
-    #   2. check a_\mu ?= u^T * CRT(s_0 \dot \bar s_1)
+    # Verify result from sumcheck
+
+    # P needs to prove a_l = \tilde f(r_0, ..., r_{l-1})
+    # Since \tilde f is the RLC of (LDE[W] * LDE[\bar W]),
+    # instead, we check a_l ?= u^T* CRT(s_0 * \bar s_1)
+    # since (LDE[W] * LDE[\bar W])(r) = LDE[W](r) * LDE[\bar W](r) = s_0 * \bar s_1
+
+    # Since all r*d/e slots uses the same challenge [r_0, ..., r_{l-1}] in sumcheck,
+    # All NTT slots should be
+    l = len(xs)
+    r_T = []
+    for j in range(l):
+        # the coefficient form of the r
+        r_coeffs = intt([rands[j]] * (d//e), Rq)
+        # Rq coefficient form
+        r_T.append(
+            sum([
+                c * x ** i
+                for i, c in enumerate(r_coeffs)
+            ])
+        )
+    print(f"{r_T=}")
+
+    # evaluate s_0 = LDE[W](r) \in R_q^r
+    s0_rqs = [
+        lde_w_i.subs({xs[j]: r_T[j] for j in range(l)})
+        for lde_w_i in lde_W
+    ]
+    # s_0_ntts = [ntt(rq.list(), Rq) for rq in s_0_rqs]
+    print(f"{s0_rqs=}")
+
+    r_T_bar = [conjugate(_r) for _r in r_T]
+    # evaluate s_1 = LDE[W](\bar r) \in R_q^r
+    s1_rqs = [
+        lde_w_i.subs({xs[j]: r_T_bar[j] for j in range(l)})
+        for lde_w_i in lde_W
+    ]
+    # s_1_bar_ntts = [ntt(rq.list(), Rq) for rq in s_1_bar_rqs]
+    print(f"{s1_rqs=}")
+
+    assert len(s0_rqs) == len(s1_rqs)
+    # pair-wise product of s_0 and \bar s_1
+    s0_s1_bar_rqs = [
+        a * conjugate(b)
+        for a, b in zip(s0_rqs, s1_rqs)
+    ]
+    print(f"{s0_s1_bar_rqs=}")
+
+    # CRT(s_0 * \bar s_1)
+    s0_s1_bar_ntts = []
+    for rq in s0_s1_bar_rqs:
+        s0_s1_bar_ntts.extend(ntt(rq.list(), Rq))
+    print(f"{s0_s1_bar_ntts=}")
+
+    # rhs = u^T * CRT(s_0 * \bar s_1)
+    assert len(u_T) == len(s0_s1_bar_ntts), "u^T length mismatch s0_s1_bar_ntts"
+    rhs = sum([
+        u * s
+        for u, s in zip(u_T, s0_s1_bar_ntts)
+    ])
+
+    # a_\mu ?= u^T * CRT(s_0 * \bar s_1)
+    assert a_l == rhs, f"a_\\mu mismatch u^T * CRT(s_0 * \\bar s_1): {a_l=}, {rhs=}"
 
     # TODO: check the lde-tensor relation.
 
-    return
 
 def rok_norm(H, F, Y, v, W):
 
@@ -293,13 +364,15 @@ def sum_over_hypercube(poly, xs, fixed: dict, D: int, start: int, end: int):
     return result
 
 
-def sumcheck(lde_poly, xs, D: int) -> tuple[Fq, list[Fq]]:
+def sumcheck(lde_poly, xs, D: int) -> tuple[Fq, Fq, list[Fq]]:
     # Claim: \sum_{b_0}...\sum_{b_{l-1}} f(b_0, ..., b_{l-1}) = a_j
     # P calculate the first a_j (a_0) and send it to V
     l = len(xs)
     # a_j, a at loop j
     # sum over [d]^l
     a = sum_over_hypercube(lde_poly, xs, {}, D, start=0, end=l)
+    # remember the result of the original claim
+    a_0 = a
 
     received_randoms = []
     for j in range(l):
@@ -339,7 +412,7 @@ def sumcheck(lde_poly, xs, D: int) -> tuple[Fq, list[Fq]]:
     # NOTE: After the loop, V has `a` (a_l = g_{l-1}(r_{l-1}))
     # Since V is not sure if g_{l-1}(x) = f(r_0,...,r_{l-2}, x),
     # V still needs to check `a ?= f(r_0, ..., r_{l-1})`
-    return a, received_randoms
+    return a_0, a, received_randoms
 
 
 # Pad w to size d^l to make it on hypercube
