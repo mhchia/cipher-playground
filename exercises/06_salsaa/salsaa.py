@@ -74,8 +74,10 @@ def get_u_vec(Fq, r: int, d: int, e: int):
     u_vec = vector(Fq, [u ** i for i in range(r*d//e)])
     return u_vec
 
+
 def conjugate(r):
     return Rq(r.lift()(-x**(d-1)))
+
 
 def rok_bar_sum(H, F, Y, t, W):
 
@@ -271,16 +273,6 @@ def rok_norm(H, F, Y, v, W):
     # Prover
     #
 
-    # Since P has witness, just sum the square of all coeffs in the poly.
-    def get_norm_square_Rq(w: vector):
-        """
-        w: a column of W, \in R^m
-        """
-        res = 0
-        for w_i in w:
-            res += sum([c*c for c in w_i.list()])
-        return res
-
     # t = (<w_i, \bar w_i>)_{i \in [r]}
     t = []
     for i in range(r):
@@ -297,7 +289,12 @@ def rok_norm(H, F, Y, v, W):
     #
     # Verifier
     #
-    # TODO: check Trace(t_i) <= v^2 \forall i \in [r]
+
+    # Since t_i = <w_i, \bar w_i> \forall i \in [m]
+    # Trace(t_i) = d * ct(t_i)
+    for i in range(r):
+        trace_t_i = d * int(t[i].list()[0])
+        assert trace_t_i <= v ** 2, f"Trace(t_i) is not <= v^2: {trace_t_i=}, {v=}"
 
     # P and V go on to rok \bar sum
     rok_bar_sum(H, F, Y, t, W)
@@ -305,16 +302,16 @@ def rok_norm(H, F, Y, v, W):
 
 def main():
     beta = 1
-    # it's l_\infty though
-    v = None
+    # FIXME: not sure what to set.
+    v = m * d * beta ** 2
 
     #
     # Norm check
     #
 
-    # FIXME: Mock H, F, Y, v for now.
+    # FIXME: Mock H, F, Y for now.
     # Should be fixed later when rok_sum_bar is working
-    H, F, Y, v = (None, None, None, None)
+    H, F, Y = None, None, None
     # W \in R_q^{m*r}
     W = get_W(m, r)
     # print(f"{W=}")
