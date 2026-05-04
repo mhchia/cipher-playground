@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 
 import random as rand
 import itertools
@@ -45,7 +46,7 @@ f = 2 * d
 # W: m \times r
 # Y: \hat n \times r
 # HFW = Y
-m = 2
+m = 4
 r = 2
 # The d in [d]^l for LDE, to avoid reusing `d` from X^d+1
 D = 2
@@ -76,8 +77,22 @@ def conjugate(r):
     return Rq(r.lift()(-x**(d-1)))
 
 def rok_bar_sum(H, F, Y, t, W):
-    # W = [w_0, ..., w_{r-1}], w_i \in R^m
-    r = W.ncols()
+
+    #
+    # Verifier
+    #
+
+    # Challenges in RLC for all NTT slots
+    # We have a LDE for each column w_i \in W=[w_1, ..., w_r] and
+    # we split that LDE into d/e NTT slots f_\text{slot_0}, ..., f_\text{slot_3}
+    # So in total there are r*d/e slots (F_{q^e})
+    # u^T: [u^0, u^1, ..., u^{rd/e}]
+    u_T = get_u_vec(Fq, r, d, e)
+    print(f"{u_T=}")
+
+    #
+    # Prover
+    #
 
     # We handle one column a time, and concatenate all of them in the end.
     def calculate_CRT_LDE_w_LDE_bar_w(col_idx: int):
@@ -85,7 +100,9 @@ def rok_bar_sum(H, F, Y, t, W):
         print(f"{w=}")
         w_bar = vector(Rq, [conjugate(w_i) for w_i in w])
         print(f"{w_bar=}")
+        # Calculate LDE[w_i]
         lde_w, xs = lde_poly(w, D=D)
+        # Calculate LDE[\bar w_i]
         lde_w_bar, _ = lde_poly(w_bar, D=D)
         print(f"{lde_w=}")
         print(f"{lde_w_bar=}")
@@ -93,7 +110,26 @@ def rok_bar_sum(H, F, Y, t, W):
         print(f"{lde_w_times_w_bar=}")
 
         # \tilde f (x_0, x_1) = A + B x_0 + C x_1 + D x_0 x_1  , A, B, C, D \in R_q
-        coeff_rqs = lde_w_times_w_bar.coefficients()
+        # NOTE: poly.coefficients() and monomials() order mismatch!
+        # poly.coefficients(): returns in the ascending order: [1, x_0, x_1, x_0 x_1]
+        # poly.monomials(): returns in descending order: [x_0 x_1, x_1, x_0, 1], opposite to `coefficients()`
+        # Timing [a*b for a, b zip(coefficients(), monomials())] would be wrong!
+        # Use poly.dict() instead when traversing multivariates!
+        monomials = []
+        coeff_rqs = []
+        for key, rq_coeff in lde_w_times_w_bar.items():
+            # turn 1 into (1,) for simplicity
+            try:
+                monomial_exp_tuple = (int(key),)
+            # already tuple
+            except TypeError:
+                monomial_exp_tuple = key
+            # (1, 2) -> x_0^1 * x_1^2
+            monomials.append(
+                prod(xs[i]**int(monomial_exp_tuple[i]) for i in range(len(xs)))
+            )
+            coeff_rqs.append(rq_coeff)
+
         #   [NTT(A), NTT(B), NTT(C), NTT(D)]
         # = [(a_0, a_1, a_2, a_3), (b_0, b_1, b_2, b_3), (c_0, c_1, c_2, c_3), (d_0, d_1, d_2, d_3)]
         coeff_ntts = [ntt(rq.list(), Rq) for rq in coeff_rqs]
@@ -101,12 +137,14 @@ def rok_bar_sum(H, F, Y, t, W):
         # \tilde f_\text{slot_0} (x_0, x_1) = a_0 + b_0 x_0 + c_0 x_1 + d_0 x_0 x_1
         # ...
         # \tilde f_\text{slot_3} (x_0, x_1) = a_3 + b_3 x_0 + c_3 x_1 + d_3 x_0 x_1
-        # tilde_fs = [\tilde f_\text{slot_0}, ..., \tilde f_\text{slot_{d//e-1}}]
+        # tilde_fs = [\tilde f_{slot_0}, ..., \tilde f_{slot_{d//e-1}}]
         tilde_fs = []
         for i in range(d // e):
+            # \tilde_f_i = a_0 + b_0 x_0 + c_0 x_1 + d_0 x_0 x_1
+            coeff_ntts_slot_i = [slot[i] for slot in coeff_ntts]
             tilde_f_slot_i = sum([
-                coeff_ntts[j][i] * m
-                for j, m in enumerate(lde_w_times_w_bar.monomials())
+                c * m
+                for c, m in zip(coeff_ntts_slot_i, monomials)
             ])
             tilde_fs.append(tilde_f_slot_i)
         return lde_w, tilde_fs, xs
@@ -121,14 +159,6 @@ def rok_bar_sum(H, F, Y, t, W):
     # xs is reused from last iteration, they're all the same
     assert len(crt_LDE_W_LDE_bar_W) != 0, "empty W and thus xs is not existing!"
 
-    # Challenges in RLC for all NTT slots
-    # We have a LDE for each column w_i \in W=[w_1, ..., w_r] and
-    # we split that LDE into d/e NTT slots f_\text{slot_0}, ..., f_\text{slot_3}
-    # So in total there are r*d/e slots (F_{q^e})
-    # u^T: [u^0, u^1, ..., u^{rd/e}]
-    u_T = get_u_vec(Fq, r, d, e)
-    print(f"{u_T=}")
-
     assert len(u_T) == len(crt_LDE_W_LDE_bar_W), "u_T length mismatch crt_LDE_W_LDE_bar_W"
 
     # RLC (Randomly Linear Combination) all r*d/e LDE per NTT slot
@@ -139,10 +169,16 @@ def rok_bar_sum(H, F, Y, t, W):
     ])
     print(f"{tilde_f=}")
 
+    #
+    # Prover <> Verifier on sumcheck
+    #
     a_0, a_l, rands = sumcheck(tilde_f, xs, D)
     print(f"sumcheck: {a_0=}, {a_l=}, {rands=}")
 
-    # Verify result from sumcheck
+
+    #
+    # Prover
+    #
 
     # P needs to prove a_l = \tilde f(r_0, ..., r_{l-1})
     # Since \tilde f is the RLC of (LDE[W] * LDE[\bar W]),
@@ -182,8 +218,14 @@ def rok_bar_sum(H, F, Y, t, W):
     ]
     # s_1_bar_ntts = [ntt(rq.list(), Rq) for rq in s_1_bar_rqs]
     print(f"{s1_rqs=}")
-
     assert len(s0_rqs) == len(s1_rqs)
+
+    # Prover sends s_0, s_1 to Verifier
+
+    #
+    # Verifier
+    #
+
     # pair-wise product of s_0 and \bar s_1
     s0_s1_bar_rqs = [
         a * conjugate(b)
