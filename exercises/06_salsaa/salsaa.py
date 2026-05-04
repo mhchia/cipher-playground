@@ -13,6 +13,7 @@ from ajtai import _gen_random_low_norm_poly, _gen_random_low_norm_witness
 from ajtai import _l_inf_norm_Rq, _l_inf_norm_vec
 from ntt import ntt, intt, find_root_of_unity, find_generator_from_mul_group
 
+
 # ============================================================
 # SALSAA — Lattice-based Folding Scheme
 # ============================================================
@@ -89,6 +90,17 @@ def rok_bar_sum(H, F, Y, t, W):
     # u^T: [u^0, u^1, ..., u^{rd/e}]
     u_T = get_u_vec(Fq, r, d, e)
     print(f"{u_T=}")
+
+    # [t_{0,0}, ..., t_{0,d/e}, ..., t_{r-1,0}, ..., t_{r-1,d/e}]
+    t_ntt = [
+        t_i_s
+        for t_i in t  # t_i \in R_q
+        for t_i_s in ntt(t_i.list(), Rq)
+    ]
+    # Sanity check
+    assert len(u_T) == len(t_ntt)
+    # [u^0 * t_{0,0} + ... + u^{rd/e} * t_{r-1,d/e}]
+    a_0 = sum([_u * _t for _u, _t in zip(u_T, t_ntt)])
 
     #
     # Prover
@@ -172,7 +184,7 @@ def rok_bar_sum(H, F, Y, t, W):
     #
     # Prover <> Verifier on sumcheck
     #
-    a_0, a_l, rands = sumcheck(tilde_f, xs, D)
+    a_l, rands = sumcheck(tilde_f, xs, a_0, D)
     print(f"sumcheck: {a_0=}, {a_l=}, {rands=}")
 
 
@@ -270,7 +282,14 @@ def rok_norm(H, F, Y, v, W):
         return res
 
     # t = (<w_i, \bar w_i>)_{i \in [r]}
-    t = [get_norm_square_Rq(W.column(i)) for i in range(r)]
+    t = []
+    for i in range(r):
+        w_i = W.column(i)
+        t_i = sum([
+            w_i[j] * conjugate(w_i[j])
+            for j in range(m)
+        ])
+        t.append(t_i)
     print(f"{t=}")
 
     # Sends t to V
@@ -407,15 +426,13 @@ def sum_over_hypercube(poly, xs, fixed: dict, D: int, start: int, end: int):
     return result
 
 
-def sumcheck(lde_poly, xs, D: int) -> tuple[Fq, Fq, list[Fq]]:
+def sumcheck(lde_poly, xs, a_0: int, D: int) -> tuple[Fq, Fq, list[Fq]]:
     # Claim: \sum_{b_0}...\sum_{b_{l-1}} f(b_0, ..., b_{l-1}) = a_j
     # P calculate the first a_j (a_0) and send it to V
     l = len(xs)
     # a_j, a at loop j
     # sum over [d]^l
-    a = sum_over_hypercube(lde_poly, xs, {}, D, start=0, end=l)
-    # remember the result of the original claim
-    a_0 = a
+    a = a_0
 
     received_randoms = []
     for j in range(l):
@@ -455,7 +472,7 @@ def sumcheck(lde_poly, xs, D: int) -> tuple[Fq, Fq, list[Fq]]:
     # NOTE: After the loop, V has `a` (a_l = g_{l-1}(r_{l-1}))
     # Since V is not sure if g_{l-1}(x) = f(r_0,...,r_{l-2}, x),
     # V still needs to check `a ?= f(r_0, ..., r_{l-1})`
-    return a_0, a, received_randoms
+    return a, received_randoms
 
 
 # Pad w to size d^l to make it on hypercube
