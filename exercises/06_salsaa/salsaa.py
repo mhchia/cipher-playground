@@ -263,8 +263,6 @@ def rok_bar_sum(H, F, Y, t, W):
     # a_\mu ?= u^T * CRT(s_0 * \bar s_1)
     assert a_l == rhs, f"a_\\mu mismatch u^T * CRT(s_0 * \\bar s_1): {a_l=}, {rhs=}"
 
-    # TODO: check the lde-tensor relation.
-
 
 def rok_norm(H, F, Y, v, W):
 
