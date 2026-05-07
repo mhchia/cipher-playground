@@ -47,6 +47,8 @@ beta = 1
 # W: m \times r
 # Y: \hat n \times r
 # HFW = Y
+n_hat = 2
+n = 2
 m = 4
 r = 2
 
@@ -63,3 +65,9 @@ print(f"SALSAA setup: Rq = Z_{q}[X]/(X^{d}+1), kappa={kappa}, m={m}, beta={beta}
 
 def conjugate(r):
     return Rq(r.lift()(-x**(d-1)))
+
+
+
+def to_centered(c):
+    v = int(c)
+    return v - q if v > q // 2 else v

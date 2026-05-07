@@ -9,9 +9,41 @@ Module layout:
   norm_check.py  — rok_norm + rok_bar_sum sub-protocols
   salsaa.py      — main driver (this file)
 """
-from ring import d, m, r
-from norm_check import get_W, rok_norm
+from sage.all import *
+from ring import n_hat, n, d, m, r, _gen_random_low_norm_poly, Rq, beta
+from norm_check import rok_norm
+from relations import (
+    LinInstance, LinWitness, LinRelation,
+    NormInstance, NormWitness, NormRelation,
+    BarSumInstance, BarSumRelation, LDETensorInstance, LDETensorRelation
+)
 from lde import test_lde_poly
+
+
+def gen_random_W(_m: int, _r: int):
+    # # Hardcoded for debugging
+    # W = matrix(Rq, [
+    #     [16*x**2 + 16*x + 1,       x**2 + 16*x + 1],
+    #     [16*x**3 + 16*x + 1,           16*x**2 + 1],
+    # ])
+    # assert W.nrows() == m
+    # assert W.ncols() == r
+    # return W
+    MS = MatrixSpace(Rq, _m, _r)
+    W = MS([ _gen_random_low_norm_poly(Rq, beta) for _ in range(_m * _r) ])
+    return W
+
+
+def gen_random_F(_n: int, _m: int):
+    MS = MatrixSpace(Rq, _n, _m)
+    F = MS([Rq.random_element() for _ in range(_n * _m) ])
+    return F
+
+
+def gen_H(_n_hat: int, _n: int):
+    MS = MatrixSpace(Rq, _n_hat, _n)
+    H = MS.identity_matrix()
+    return H
 
 
 def main():
@@ -21,16 +53,29 @@ def main():
     # for each w_i \in R^m, |w_i| = |w_{i,1}|^2 + ... + |w_{i,m}|^2 <= beta
     v_square = m * beta_square
 
+    # TODO: now we only have commitment but evaluation. should add evaluation
+    # and thus H, F need to be changed.
+    # W \in R_q^{m*r}
+    H = gen_H(n_hat, n)
+    F = gen_random_F(n, m)
+    W = gen_random_W(m, r)
+    Y = H * F * W
+    print(f"{H=}")
+    print(f"{F=}")
+    print(f"{W=}")
+    print(f"{Y=}")
+
+    lin_r = LinRelation(
+        instance=LinInstance(H=H, F=F, Y=Y, beta_square=beta_square),
+        witness=LinWitness(W),
+    )
+    print(f"{lin_r=}")
+
+    return
     #
     # Norm check
     #
 
-    # FIXME: Mock H, F, Y for now.
-    # Should be fixed later when rok_sum_bar is working
-    H, F, Y = None, None, None
-    # W \in R_q^{m*r}
-    W = get_W(m, r)
-    # print(f"{W=}")
 
     rok_norm(H, F, Y, v_square, W)
 

@@ -11,17 +11,19 @@ Reference: SALSAA paper, Section 3-4.
 from dataclasses import dataclass
 from typing import Any
 
+from ring import to_centered
+
 
 # ============================================================
 # Σ^lin: linear relation with infinity-norm bound
-# ((H, F, Y, β), W) ∈ Σ^lin  iff  H · F · W = Y mod q  and  ‖W‖_∞ ≤ β
+# ((H, F, Y, β), W) ∈ Σ^lin  iff  H · F · W = Y mod q  and  ‖W‖_2 ≤ β
 # ============================================================
 @dataclass(frozen=True)
 class LinInstance:
     H: Any   # n̂ × n in R_q
     F: Any   # n × m in R_q
     Y: Any   # n̂ × r in R_q
-    beta: int
+    beta_square: int
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,19 @@ class LinRelation:
     instance: LinInstance
     witness: LinWitness
 
+
+    def __post_init__(self):
+        H, F, W, Y = self.instance.H, self.instance.F, self.witness.W, self.instance.Y
+        assert H * F * W == Y
+        max_col_norm_square = 0
+        for i in range(W.ncols()):
+            col_norm_square = 0
+            for j in range(W.nrows()):
+                for c in W[j][i].list():
+                    cv = to_centered(c)
+                    col_norm_square += cv * cv
+            max_col_norm_square = max(col_norm_square, max_col_norm_square)
+        assert max_col_norm_square <= self.instance.beta_square
 
 # ============================================================
 # Σ^norm: a-2 norm relation

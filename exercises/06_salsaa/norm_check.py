@@ -21,20 +21,6 @@ from lde import lde_poly
 from sumcheck import sumcheck
 
 
-def get_W(m: int, r: int):
-    # # Hardcoded for debugging
-    # W = matrix(Rq, [
-    #     [16*x**2 + 16*x + 1,       x**2 + 16*x + 1],
-    #     [16*x**3 + 16*x + 1,           16*x**2 + 1],
-    # ])
-    # assert W.nrows() == m
-    # assert W.ncols() == r
-    # return W
-    MS = MatrixSpace(Rq, m, r)
-    W = MS([ _gen_random_low_norm_poly(Rq, beta) for _ in range(r * m) ])
-    return W
-
-
 def get_u_vec(Fq, r: int, d: int, e: int):
     u = Fq(rand.randint(1, q-1))
     u_vec = vector(Fq, [u ** i for i in range(r*d//e)])
