@@ -66,7 +66,7 @@ def main():
     print(f"{Y=}")
 
     lin_r = LinRelation(
-        instance=LinInstance(H=H, F=F, Y=Y, beta_square=beta_square),
+        instance=LinInstance(H=H, F=F, Y=Y, v_square=v_square),
         witness=LinWitness(W),
     )
     print(f"{lin_r=}")

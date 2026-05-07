@@ -15,15 +15,17 @@ from ring import to_centered
 
 
 # ============================================================
-# Σ^lin: linear relation with infinity-norm bound
-# ((H, F, Y, β), W) ∈ Σ^lin  iff  H · F · W = Y mod q  and  ‖W‖_2 ≤ β
+# Σ^lin: linear relation with column-wise L2 norm bound
+# ((H, F, Y, ν), W) ∈ Σ^lin  iff  H · F · W = Y mod q  and
+#   max_i ‖w_i‖₂² ≤ ν²    (paper notation: ‖W‖_{σ,2} ≤ ν)
+# where w_i is the i-th column of W viewed as concatenated coefficient vector.
 # ============================================================
 @dataclass(frozen=True)
 class LinInstance:
     H: Any   # n̂ × n in R_q
     F: Any   # n × m in R_q
     Y: Any   # n̂ × r in R_q
-    beta_square: int
+    v_square: int
 
 
 @dataclass(frozen=True)
@@ -48,7 +50,7 @@ class LinRelation:
                     cv = to_centered(c)
                     col_norm_square += cv * cv
             max_col_norm_square = max(col_norm_square, max_col_norm_square)
-        assert max_col_norm_square <= self.instance.beta_square
+        assert max_col_norm_square <= self.instance.v_square
 
 # ============================================================
 # Σ^norm: a-2 norm relation
@@ -101,9 +103,9 @@ class BarSumRelation:
 @dataclass(frozen=True)
 class LDETensorInstance:
     norm: NormInstance
-    s_0: tuple   # LDE[W](r̃)
-    s_1: tuple   # LDE[W](r̃̄)
-    r_T: tuple   # sumcheck challenges lifted into R_q
+    s_0: tuple    # LDE[W](r̃)        ∈ R_q^r  (r = W.ncols())
+    s_1: tuple    # LDE[W](r̃̄)        ∈ R_q^r
+    r_tilde: tuple   # sumcheck challenges (length μ), lifted into R_q
 
 
 @dataclass(frozen=True)
