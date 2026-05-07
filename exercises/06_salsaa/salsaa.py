@@ -264,7 +264,8 @@ def rok_bar_sum(H, F, Y, t, W):
     assert a_l == rhs, f"a_\\mu mismatch u^T * CRT(s_0 * \\bar s_1): {a_l=}, {rhs=}"
 
 
-def rok_norm(H, F, Y, v, W):
+
+def rok_norm(H, F, Y, v_square, W):
 
 
     #
@@ -288,20 +289,30 @@ def rok_norm(H, F, Y, v, W):
     # Verifier
     #
 
+    # # Paper version:
+    # # Since t_i = <w_i, \bar w_i> \forall i \in [m]
+    # # Trace(t_i) = d * ct(t_i)
+    # for i in range(r):
+    #     trace_t_i = d * int(t[i].list()[0])
+    #     assert trace_t_i <= v ** 2, f"Trace(t_i) is not <= v^2: {trace_t_i=}, {v=}"
+
+    # Current version to simplify
     # Since t_i = <w_i, \bar w_i> \forall i \in [m]
-    # Trace(t_i) = d * ct(t_i)
+    # ct(t_i) = |w_i|^2, and should be \lte \beta^2
     for i in range(r):
-        trace_t_i = d * int(t[i].list()[0])
-        assert trace_t_i <= v ** 2, f"Trace(t_i) is not <= v^2: {trace_t_i=}, {v=}"
+        norm_w_i_square = t[i].list()[0]
+        assert norm_w_i_square <= v_square, f"norm_w_i_square is not <= v^2: {norm_w_i_square=}, {v_square=}"
 
     # P and V go on to rok \bar sum
     rok_bar_sum(H, F, Y, t, W)
 
 
 def main():
-    beta = 1
-    # FIXME: not sure what to set.
-    v = m * d * beta ** 2
+    # R_q should be small, like {-1,0,1}^d.
+    # assume beta^2 = d
+    beta_square = d
+    # for each w_i \in R^m, |w_i| = |w_{i,1}|^2 + ... + |w_{i,m}|^2 <= beta
+    v_square = m * beta_square
 
     #
     # Norm check
@@ -317,7 +328,7 @@ def main():
     # TODO: V still needs to check `a ?= f(r_0, ..., r_{l-1})`!
     # a, rs = sumcheck(w, d=2)
     # print(f"{a=}, {rs=}")
-    rok_norm(H, F, Y, v, W)
+    rok_norm(H, F, Y, v_square, W)
 
 
     # ============================================================
