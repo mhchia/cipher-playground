@@ -42,6 +42,7 @@ class LinRelation:
     def __post_init__(self):
         H, F, W, Y = self.instance.H, self.instance.F, self.witness.W, self.instance.Y
         assert H * F * W == Y
+
         max_col_norm_square = 0
         for i in range(W.ncols()):
             col_norm_square = 0
@@ -63,7 +64,22 @@ class NormInstance:
     H: Any
     F: Any
     Y: Any
-    nu: int   # a-2 norm bound
+    v_square: int
+
+    def __post_init__(self):
+        H, F, W, Y = self.instance.H, self.instance.F, self.witness.W, self.instance.Y
+        assert H * (F * W) == Y
+
+        max_col_norm_square = 0
+        for i in range(W.ncols()):
+            col_norm_square = 0
+            for j in range(W.nrows()):
+                for c in W[j][i].list():
+                    cv = to_centered(c)
+                    col_norm_square += cv * cv
+            max_col_norm_square = max(col_norm_square, max_col_norm_square)
+        assert max_col_norm_square <= self.instance.v_square
+
 
 
 @dataclass(frozen=True)

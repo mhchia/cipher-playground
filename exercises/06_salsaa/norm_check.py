@@ -17,7 +17,8 @@ from ring import (
     q, d, Fq, Rq, x, e, m, r, D, beta,
     conjugate, _gen_random_low_norm_poly,
 )
-from lde import lde_poly
+from relations import LinInstance, LinRelation, LinWitness
+from lde import lde_poly, tensor_product
 from sumcheck import sumcheck
 
 
@@ -63,9 +64,9 @@ def rok_bar_sum(H, F, Y, t, W):
         w_bar = vector(Rq, [conjugate(w_i) for w_i in w])
         print(f"{w_bar=}")
         # Calculate LDE[w_i]
-        lde_w, xs = lde_poly(w, D=D)
+        lde_w, xs = lde_poly(w, D)
         # Calculate LDE[\bar w_i]
-        lde_w_bar, _ = lde_poly(w_bar, D=D)
+        lde_w_bar, _ = lde_poly(w_bar, D)
         print(f"{lde_w=}")
         print(f"{lde_w_bar=}")
         lde_w_times_w_bar = lde_w * lde_w_bar
@@ -174,8 +175,9 @@ def rok_bar_sum(H, F, Y, t, W):
     print(f"{s0_rqs=}")
 
     # evaluate s_1 = LDE[W](\bar r) \in R_q^r
+    r_T_bar = [conjugate(r_T[j]) for j in range(l)]
     s1_rqs = [
-        lde_w_i.subs({xs[j]: conjugate(r_T[j]) for j in range(l)})
+        lde_w_i.subs({xs[j]: r_T_bar[j] for j in range(l)})
         for lde_w_i in lde_W
     ]
     # s_1_bar_ntts = [ntt(rq.list(), Rq) for rq in s_1_bar_rqs]
@@ -211,10 +213,18 @@ def rok_bar_sum(H, F, Y, t, W):
     # a_\mu ?= u^T * CRT(s_0 * \bar s_1)
     assert a_l == rhs, f"a_\\mu mismatch u^T * CRT(s_0 * \\bar s_1): {a_l=}, {rhs=}"
 
+    return (
+        (r_T, s0_rqs),
+        (r_T_bar, s1_rqs),
+    )
 
 
-def rok_norm(H, F, Y, v_square, W):
 
+def rok_norm(lin_r, v_square) -> LinRelation:
+    H = lin_r.instance.H
+    F = lin_r.instance.F
+    Y = lin_r.instance.Y
+    W = lin_r.witness.W
 
     #
     # Prover
@@ -252,4 +262,31 @@ def rok_norm(H, F, Y, v_square, W):
         assert norm_w_i_square <= v_square, f"norm_w_i_square is not <= v^2: {norm_w_i_square=}, {v_square=}"
 
     # P and V go on to rok \bar sum
-    rok_bar_sum(H, F, Y, t, W)
+    (r_0, s_0), (r_1, s_1) = rok_bar_sum(H, F, Y, t, W)
+
+    # Embed s_1, s_2 into HFW = Y
+    n_hat = H.nrows()
+    n = F.nrows()
+    H_new = block_matrix(Rq, [
+        [H,                          zero_matrix(Rq, n_hat, 2)],
+        [zero_matrix(Rq, 2, n),      identity_matrix(Rq, 2)   ],
+    ])
+
+    F_new = F.stack(
+        matrix(Rq, [
+            tensor_product(r_0, D),
+            tensor_product(r_1, D),
+        ])
+    )
+    Y_new = Y.stack(
+        matrix(Rq, [
+            s_0,
+            s_1,
+        ])
+    )
+    lin_r = LinRelation(
+        instance=LinInstance(H=H_new, F=F_new, Y=Y_new, v_square=v_square),
+        witness=LinWitness(W),
+    )
+    # relation r: \nhat+2, n+2, m, r_\text{acc}+L, \beta
+    return lin_r

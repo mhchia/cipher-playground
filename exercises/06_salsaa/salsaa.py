@@ -17,7 +17,7 @@ from relations import (
     NormInstance, NormWitness, NormRelation,
     BarSumInstance, BarSumRelation, LDETensorInstance, LDETensorRelation
 )
-from lde import test_lde_poly
+from lde import test_lde_poly, tensor_product
 
 
 def gen_random_W(_m: int, _r: int):
@@ -71,13 +71,11 @@ def main():
     )
     print(f"{lin_r=}")
 
-    return
     #
     # Norm check
     #
 
-
-    rok_norm(H, F, Y, v_square, W)
+    rok_norm(lin_r, v_square)
 
 
     # ============================================================
