@@ -265,28 +265,20 @@ def rok_norm(lin_r, v_square) -> LinRelation:
     (r_0, s_0), (r_1, s_1) = rok_bar_sum(H, F, Y, t, W)
 
     # Embed s_1, s_2 into HFW = Y
-    n_hat = H.nrows()
-    n = F.nrows()
-    H_new = block_matrix(Rq, [
-        [H,                          zero_matrix(Rq, n_hat, 2)],
-        [zero_matrix(Rq, 2, n),      identity_matrix(Rq, 2)   ],
+    new_F_rows = matrix(Rq, [
+        tensor_product(r_0, D),
+        tensor_product(r_1, D),
     ])
-
-    F_new = F.stack(
-        matrix(Rq, [
-            tensor_product(r_0, D),
-            tensor_product(r_1, D),
-        ])
+    new_Y_rows = matrix(Rq, [
+        s_0,
+        s_1,
+    ])
+    lin_r_new = LinRelation(
+        instance=lin_r.instance.with_extra_eval(
+            new_F_rows=new_F_rows,
+            new_Y_rows=new_Y_rows,
+        ),
+        witness=lin_r.witness,
     )
-    Y_new = Y.stack(
-        matrix(Rq, [
-            s_0,
-            s_1,
-        ])
-    )
-    lin_r = LinRelation(
-        instance=LinInstance(H=H_new, F=F_new, Y=Y_new, v_square=v_square),
-        witness=LinWitness(W),
-    )
-    # relation r: \nhat+2, n+2, m, r_\text{acc}+L, \beta
-    return lin_r
+    # relation r: \hat n +2, n+2, m, r_\text{acc}+L, \beta
+    return lin_r_new

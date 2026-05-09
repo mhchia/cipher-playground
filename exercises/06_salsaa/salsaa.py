@@ -46,6 +46,10 @@ def gen_H(_n_hat: int, _n: int):
     return H
 
 
+def rok_join(lin_1: LinRelation, lin_2: LinRelation) -> LinRelation:
+    pass
+
+
 def main():
     # R_q should be small, like {-1,0,1}^d.
     # assume beta^2 = d
@@ -66,7 +70,7 @@ def main():
     print(f"{Y=}")
 
     lin_r = LinRelation(
-        instance=LinInstance(H=H, F=F, Y=Y, v_square=v_square),
+        instance=LinInstance(H=H, F_com=F, F_eval=None, Y=Y, v_square=v_square),
         witness=LinWitness(W),
     )
     print(f"{lin_r=}")
@@ -75,7 +79,7 @@ def main():
     # Norm check
     #
 
-    rok_norm(lin_r, v_square)
+    lin_norm_r = rok_norm(lin_r, v_square)
 
 
     # ============================================================
