@@ -140,3 +140,7 @@ class LinRelation:
     @property
     def r(self):
         return self.instance.r
+
+    @property
+    def v_square(self):
+        return self.instance.v_square

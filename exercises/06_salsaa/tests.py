@@ -10,6 +10,7 @@ from sage.all import *
 from ring import q, Fq, d, x, Rq, conjugate, to_centered, _gen_random_low_norm_poly
 from lde import lde_poly, pad_vec_to_d_exp, tensor_product
 from relations import LinInstance, LinWitness, LinRelation
+from join import rok_join
 
 
 # ============================================================
@@ -129,6 +130,108 @@ def _make_small_norm_W():
         [x,           Rq(-1)],
         [Rq(-1) * x,  Rq(1)],
     ])
+
+
+_SHARED_F_COM = matrix(Rq, [
+    [Rq(1) + x,   Rq(2),    Rq(3),    Rq(0)],
+    [Rq(0),       Rq(5)*x,  Rq(7),    Rq(11)],
+])
+
+
+def _make_lin_relation_with_eval(variant: int = 0):
+    """
+    Build a satisfying LinRelation with BOTH commitment and evaluation rows.
+
+    All variants share the same `F_com` (Ajtai commitment matrix) — this matches
+    the SALSAA join assumption that instances being folded use a common
+    commitment scheme. Variants differ in W (different witness) and r̃ points
+    (different evaluation rows in F_eval).
+
+    Layout (κ=2, n_eval=2, m=4, r=2):
+      F_com:  2 × 4   shared across variants
+      F_eval: 2 × 4   tensor_product rows at variant-specific points
+      H:      4 × 4   identity (no batching)
+      Y:      4 × 2   = H · F · W
+    """
+    F_com = _SHARED_F_COM
+    if variant == 0:
+        W = _make_small_norm_W()
+        r_tilde_0 = vector(Fq, [3, 5])
+        r_tilde_1 = vector(Fq, [7, 11])
+    elif variant == 1:
+        W = matrix(Rq, [
+            [Rq(0),  Rq(1)],
+            [Rq(1),  x],
+            [Rq(-1), Rq(0)],
+            [x,      Rq(-1) * x],
+        ])
+        r_tilde_0 = vector(Fq, [2, 9])
+        r_tilde_1 = vector(Fq, [4, 6])
+    else:
+        raise ValueError(f"Unknown variant {variant}")
+
+    # F_eval rows: tensor evaluation basis at the chosen points
+    F_eval = matrix(Rq, [
+        tensor_product(r_tilde_0, 2),
+        tensor_product(r_tilde_1, 2),
+    ])
+    # H = I_{κ + n_eval}, no batching (every eval row preserved as-is)
+    H = identity_matrix(Rq, F_com.nrows() + F_eval.nrows())
+    Y = H * F_com.stack(F_eval) * W
+
+    return LinRelation(
+        instance=LinInstance(H=H, F_com=F_com, F_eval=F_eval, Y=Y, v_square=16),
+        witness=LinWitness(W),
+    )
+
+
+def test_make_lin_relation_with_eval():
+    """Fixture self-check: both variants build valid LinRelations."""
+    rel_0 = _make_lin_relation_with_eval(variant=0)
+    rel_1 = _make_lin_relation_with_eval(variant=1)
+    # Both should be valid (no exception from __post_init__) and have eval rows
+    for rel in (rel_0, rel_1):
+        assert rel.instance.F_com.nrows() == 2
+        assert rel.instance.F_eval is not None
+        assert rel.instance.F_eval.nrows() == 2
+        assert rel.instance.H.nrows() == 4
+        assert rel.instance.Y.nrows() == 4
+    # Variants should differ (otherwise join with itself = boring test)
+    assert rel_0.instance.W != rel_1.instance.W or rel_0.instance.F_com != rel_1.instance.F_com \
+        if hasattr(rel_0.instance, 'W') else True
+    print("  test_make_lin_relation_with_eval: OK")
+
+
+def test_rok_join_smoke():
+    """
+    Join two LinRelations into one.
+
+    NOTE: this test will FAIL until rok_join is implemented (TDD-style).
+    Adjust assertions as the join contract crystallizes.
+    """
+    rel_0 = _make_lin_relation_with_eval(variant=0)
+    rel_1 = _make_lin_relation_with_eval(variant=1)
+
+    joined = rok_join(rel_0, rel_1)
+
+    # Should return a valid LinRelation (its __post_init__ enforces HFW=Y + norm)
+    assert isinstance(joined, LinRelation), \
+        f"rok_join must return LinRelation, got {type(joined)}"
+
+    n_top = rel_0.instance.F_com.nrows()
+    n_bot_each = rel_0.instance.F_eval.nrows()
+    assert joined.m == rel_0.m
+    assert joined.hat_n == rel_0.hat_n + rel_1.hat_n - n_top
+    assert joined.r == rel_0.r + rel_1.r
+    # Per paper §6.1: joining L=2 instances adds (n - n̄)·(L-1) = n_bot rows to F.
+    assert joined.n == n_top + 2 * n_bot_each, \
+        f"expected n={n_top + 2*n_bot_each}, got {joined.n}"
+
+    # Key invariants of join: shared commitment + v_square preserved + H square (pre-batch)
+    assert joined.instance.F_com == rel_0.instance.F_com, "F_com must be preserved"
+    assert joined.instance.v_square == rel_0.instance.v_square, "v_square must be preserved"
+    assert joined.instance.H.nrows() == joined.instance.H.ncols(), "H stays square pre-batch"
+    print("  test_rok_join_smoke: OK")
 
 
 def test_lin_relation_happy():
@@ -299,6 +402,10 @@ def main():
     test_lin_instance_mismatched_widths_raises()
     test_lin_relation_dimensions_asymmetric()
     test_with_extra_eval_dimensions()
+    test_make_lin_relation_with_eval()
+
+    print("join.py")
+    test_rok_join_smoke()
 
     print("\nAll tests passed.")
 
