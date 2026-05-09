@@ -77,38 +77,4 @@ def pad_vec_to_d_exp(w: vector, _D: int):
     return w_padded, l
 
 
-def test_lde_poly():
-    # Test with multiple d values on the same w
-    w = vector(Fq, [1, 2, 8, 10, 3, 5])
-
-    for D in [2, 3, 4]:
-        w_pad, l = pad_vec_to_d_exp(w, D)
-        poly, xs = lde_poly(w, D)
-
-        # Every point in [d]^l should recover the padded value
-        for bit_repr in itertools.product(range(D), repeat=l):
-            bit_repr_reversed = bit_repr[::-1]
-            idx = sum([bit * D**i for i, bit in enumerate(bit_repr_reversed)])
-            val = poly.subs({xs[i]: bit_repr[i] for i in range(l)})
-            assert w_pad[idx] == val, \
-                f"lde_poly mismatch at {bit_repr=}, {D=}: expected {w_pad[idx]}, got {val}"
-
-    # Test: size already equals d^l (no padding needed)
-    w_exact = vector(Fq, [1, 2, 3, 4])
-    for D in [2, 4]:
-        w_pad, l = pad_vec_to_d_exp(w_exact, D)
-        poly, xs = lde_poly(w_exact, D)
-        assert len(w_pad) == len(w_exact) or w_pad[len(w_exact):] == vector(Fq, [0]*(len(w_pad)-len(w_exact)))
-        for bit_repr in itertools.product(range(D), repeat=l):
-            bit_repr_reversed = bit_repr[::-1]
-            idx = sum([bit * D**i for i, bit in enumerate(bit_repr_reversed)])
-            assert w_pad[idx] == poly.subs({xs[i]: bit_repr[i] for i in range(l)})
-
-    # Test: single element
-    w_single = vector(Fq, [7])
-    for D in [2, 3]:
-        poly, xs = lde_poly(w_single, D)
-        if len(xs) == 0:
-            assert poly == Fq(7)
-        else:
-            assert poly.subs({xs[0]: 0}) == Fq(7)
+# Tests live in tests.py (run: `sage -python tests.py`).

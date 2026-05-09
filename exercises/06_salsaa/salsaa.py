@@ -17,7 +17,7 @@ from relations import (
     NormInstance, NormWitness, NormRelation,
     BarSumInstance, BarSumRelation, LDETensorInstance, LDETensorRelation
 )
-from lde import test_lde_poly, tensor_product
+from lde import tensor_product
 
 
 def gen_random_W(_m: int, _r: int):
@@ -126,10 +126,5 @@ def main():
     # # print(f"Ajtai commit OK: {c=}")
 
 
-def tests():
-    test_lde_poly()
-
-
 if __name__ == '__main__':
-    tests()
     main()

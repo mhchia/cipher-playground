@@ -28,7 +28,7 @@ def get_u_vec(Fq, r: int, d: int, e: int):
     return u_vec
 
 
-def rok_bar_sum(H, F, Y, t, W):
+def rok_bar_sum(t, W):
 
     #
     # Verifier
@@ -262,7 +262,7 @@ def rok_norm(lin_r, v_square) -> LinRelation:
         assert norm_w_i_square <= v_square, f"norm_w_i_square is not <= v^2: {norm_w_i_square=}, {v_square=}"
 
     # P and V go on to rok \bar sum
-    (r_0, s_0), (r_1, s_1) = rok_bar_sum(H, F, Y, t, W)
+    (r_0, s_0), (r_1, s_1) = rok_bar_sum(t, W)
 
     # Embed s_1, s_2 into HFW = Y
     new_F_rows = matrix(Rq, [
