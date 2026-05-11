@@ -71,3 +71,11 @@ def conjugate(r):
 def to_centered(c):
     v = int(c)
     return v - q if v > q // 2 else v
+
+
+def get_l2_norm_square(w: vector):
+    l2_norm_s = 0
+    for w_i in w:
+        coeffs = w_i.list()
+        l2_norm_s += sum([c*c for c in coeffs])
+    return l2_norm_s

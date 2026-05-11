@@ -12,6 +12,7 @@ from lde import lde_poly, pad_vec_to_d_exp, tensor_product
 from relations import LinInstance, LinWitness, LinRelation
 from join import rok_join
 from rp import rok_rp
+from fold import rok_fold
 
 
 # ============================================================
@@ -308,6 +309,52 @@ def test_rok_rp_smoke():
     print("  test_rok_rp_smoke: OK")
 
 
+def test_rok_fold_smoke():
+    """
+    Smoke test for rok_fold (Π^fold, paper §3.4.1).
+
+    Reduces witness width r → 1 by random column linear combination:
+        Ŵ := W · c    Ŷ := Y · c    with random c ∈ R_q^r
+    H, F preserved. Output ((H, F, Ŷ), Ŵ) ∈ Σ^lin.
+
+    NOTE: TDD-style — will FAIL until rok_fold is implemented.
+    """
+    lin_in = _make_lin_relation_with_eval(variant=0)
+    out = rok_fold(lin_in)
+
+    # Type + structural invariants
+    assert isinstance(out, LinRelation), \
+        f"rok_fold must return LinRelation, got {type(out).__name__}"
+
+    # Witness width collapsed to 1
+    assert out.r == 1, f"folded r must be 1, got {out.r}"
+
+    # Other dims unchanged
+    assert out.hat_n == lin_in.hat_n, f"hat_n changed: {lin_in.hat_n} → {out.hat_n}"
+    assert out.n == lin_in.n,         f"n changed: {lin_in.n} → {out.n}"
+    assert out.m == lin_in.m,         f"m changed: {lin_in.m} → {out.m}"
+
+    # F unchanged (fold only touches W and Y by linear combination)
+    assert out.instance.F_com == lin_in.instance.F_com, \
+        "F_com must be preserved"
+    if lin_in.instance.F_eval is None:
+        assert out.instance.F_eval is None
+    else:
+        assert out.instance.F_eval == lin_in.instance.F_eval, \
+            "F_eval must be preserved"
+
+    # H unchanged
+    assert out.instance.H == lin_in.instance.H, "H must be preserved"
+
+    # The LinRelation __post_init__ has already validated:
+    #   - H · F · Ŵ = Ŷ
+    #   - column norm² ≤ v_square (so v_square is at least sufficient)
+    # i.e., if rok_fold sends a wrong c-application, this test would explode in
+    # __post_init__ with a precise "relation doesn't hold" message.
+
+    print("  test_rok_fold_smoke: OK")
+
+
 def test_lin_relation_happy():
     H = identity_matrix(Rq, 2)
     F_com = matrix(Rq, [
@@ -483,6 +530,9 @@ def main():
 
     print("rp.py")
     test_rok_rp_smoke()
+
+    print("fold.py")
+    test_rok_fold_smoke()
 
     print("\nAll tests passed.")
 
