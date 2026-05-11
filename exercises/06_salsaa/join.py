@@ -74,8 +74,3 @@ def rok_join(lin_0: LinRelation, lin_1: LinRelation) -> LinRelation:
     # .hat_n = hat_n_0 + hat_n_1 - n_top
     # .r = r_0 + r_1
     return lin_joined
-
-
-    # Y = matrix(Rq,
-
-    # )

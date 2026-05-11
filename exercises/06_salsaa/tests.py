@@ -11,6 +11,7 @@ from ring import q, Fq, d, x, Rq, conjugate, to_centered, _gen_random_low_norm_p
 from lde import lde_poly, pad_vec_to_d_exp, tensor_product
 from relations import LinInstance, LinWitness, LinRelation
 from join import rok_join
+from rp import rok_rp
 
 
 # ============================================================
@@ -234,6 +235,79 @@ def test_rok_join_smoke():
     print("  test_rok_join_smoke: OK")
 
 
+def _make_lin_relation_for_rp_input():
+    """
+    Satisfying LinRelation suitable as Π^⊗RP input.
+
+    Π^⊗RP projects W (m × r) into Ŵ (m' × r) where m' = m/r, so we need
+    `m` divisible by `r`. Reuses the existing small-norm fixture (m=4, r=2 → m'=2).
+    """
+    F_com = _SHARED_F_COM
+    W = _make_small_norm_W()  # 4 × 2
+    H = identity_matrix(Rq, F_com.nrows())
+    Y = H * F_com * W
+    return LinRelation(
+        instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, v_square=16),
+        witness=LinWitness(W),
+    )
+
+
+def test_rok_rp_smoke():
+    """
+    Smoke test for rok_rp.
+
+    LinRelations:
+      - aug:  augmented original   ((H̃, F̃, Ỹ), W)   — width r preserved
+      - proj: projected            ((I, F̂, ŷ), ŵ)   — width collapsed to 1,
+                                                        m shrinks to m' = m/r,
+                                                        norm grows to β̂ = m_rp · β
+
+    Verifier samples J' ∈ R_q^{n_rp × m_rp} from {-1, 0, 1}, with m_rp/n_rp = r.
+
+    NOTE: this test will FAIL until rok_rp is implemented (TDD-style).
+    """
+    lin_in = _make_lin_relation_for_rp_input()
+
+    # Pick the smallest legal projection: n_rp = 1, m_rp = r.
+    # (Adjust the call below if your rok_rp signature ends up different.)
+    n_rp = 1
+    m_rp = lin_in.r
+    out = rok_rp(lin_in, n_rp=n_rp, m_rp=m_rp)
+
+    # Type-shape: must be a 2-tuple of LinRelations.
+    assert isinstance(out, tuple) and len(out) == 2, \
+        f"rok_rp must return a 2-tuple, got {type(out).__name__} of len {len(out) if hasattr(out, '__len__') else '?'}"
+    aug, proj = out
+    assert isinstance(aug, LinRelation), f"first output must be LinRelation, got {type(aug).__name__}"
+    assert isinstance(proj, LinRelation), f"second output must be LinRelation, got {type(proj).__name__}"
+
+    # The fact that both wrap as LinRelation already enforces (via __post_init__):
+    #   - H · F · W = Y on each side  (algebraic correctness)
+    #   - max column ‖·‖² ≤ v_square  (norm bound)
+    # So any cross-term arithmetic bug in rok_rp would already explode above.
+
+    # Commitment must be preserved on the augmented side
+    # (Π^⊗RP only *appends* a row to F; it doesn't touch the F_com block).
+    assert aug.instance.F_com == lin_in.instance.F_com, \
+        "F_com on the augmented side must be unchanged"
+
+    assert aug.hat_n == lin_in.hat_n + 1
+    assert aug.n == lin_in.n + 1
+    assert aug.m == lin_in.m
+    assert aug.r == lin_in.r
+    assert aug.v_square == lin_in.v_square
+
+    assert proj.hat_n == lin_in.n_top + 1
+    assert proj.n == lin_in.n_top + 1
+    assert proj.m == lin_in.m
+    # only one \hat w
+    assert proj.r == 1
+    # norm bound growth: \beta_{proj} = m_{rp} * \beta_{lin}
+    assert proj.v_square == lin_in.v_square * (m_rp**2)
+
+    print("  test_rok_rp_smoke: OK")
+
+
 def test_lin_relation_happy():
     H = identity_matrix(Rq, 2)
     F_com = matrix(Rq, [
@@ -406,6 +480,9 @@ def main():
 
     print("join.py")
     test_rok_join_smoke()
+
+    print("rp.py")
+    test_rok_rp_smoke()
 
     print("\nAll tests passed.")
 
