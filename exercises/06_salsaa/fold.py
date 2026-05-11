@@ -27,11 +27,10 @@ def sample_C(r_in: int, r_out):
     )
 
 
-def rok_fold(lin: LinRelation) -> LinRelation:
+def rok_fold(lin: LinRelation, r_out: int) -> LinRelation:
     r_in = lin.r
-    # TODO: can be changed to generalize
-    r_out = 1
 
+    # TODO: confirm it's correct.
     # gamma
     # Since c_ij is +-1 or 0,
     # |c_ij * w|^2 = |c_ij w_1|^2 + ... + |c_ij w_r|^2
@@ -51,20 +50,6 @@ def rok_fold(lin: LinRelation) -> LinRelation:
     H, F_com, F_eval, W = lin.instance.H, lin.instance.F_com, lin.instance.F_eval, lin.witness.W
     # \tilde W = W * C
     W_tilde = W * C
-
-    # t_m = 50
-    # t_r = 4
-    # test_W = matrix(Rq, t_m, t_r, lambda i, j: _gen_random_low_norm_poly(Rq, 1))
-    # test_C, _ = sample_C(t_r, 1)
-    # print(f"{test_W=}")
-    # test_W_tilde = test_W * test_C
-    # print(f"{test_W_tilde=}")
-
-    # orig_norm_square = max([get_l2_norm_square(test_W.column(i)) for i in range(t_r)])
-    # folded_norm_square = get_l2_norm_square(test_W_tilde.column(0))
-    # print(f"{orig_norm_square=}, {folded_norm_square=}")
-
-    # Sends Y_tilde to Verifier
 
     # Derive new bound
     # \beta = r_in * \gamma * \beta

@@ -13,6 +13,7 @@ from relations import LinInstance, LinWitness, LinRelation
 from join import rok_join
 from rp import rok_rp
 from fold import rok_fold
+from batch import rok_batch
 
 
 # ============================================================
@@ -309,6 +310,60 @@ def test_rok_rp_smoke():
     print("  test_rok_rp_smoke: OK")
 
 
+def test_rok_batch_smoke():
+    """
+    Smoke test for rok_batch (Π^batch).
+
+    Collapses the evaluation rows of H from `n̂ - n̄` down to `n_target_eval_rows`
+    by random linear combination (Vandermonde-like in c), applied symmetrically
+    to Y. The top `n̄` (commitment) rows of H are preserved as-is. F (both F_com
+    and F_eval), W, m, r, v_square all preserved — batch only acts on H and Y.
+
+    NOTE: TDD-style — will FAIL until rok_batch is implemented.
+    """
+    lin_in = _make_lin_relation_with_eval(variant=0)
+    n_target_eval_rows = 1
+    out = rok_batch(lin_in, n_target_eval_rows)
+
+    # Type
+    assert isinstance(out, LinRelation), \
+        f"rok_batch must return LinRelation, got {type(out).__name__}"
+
+    # hat_n must equal n̄ + n_target_eval_rows (commitment rows kept + batched eval rows)
+    expected_hat_n = lin_in.n_top + n_target_eval_rows
+    assert out.hat_n == expected_hat_n, \
+        f"hat_n: expected {expected_hat_n} (= n_top {lin_in.n_top} + target {n_target_eval_rows}), got {out.hat_n}"
+
+    # n, m, r unchanged (batch doesn't touch witness side or F)
+    assert out.n == lin_in.n, f"n changed: {lin_in.n} → {out.n}"
+    assert out.m == lin_in.m, f"m changed: {lin_in.m} → {out.m}"
+    assert out.r == lin_in.r, f"r changed: {lin_in.r} → {out.r}"
+
+    # F (both halves) unchanged
+    assert out.instance.F_com == lin_in.instance.F_com, \
+        "F_com must be preserved"
+    if lin_in.instance.F_eval is None:
+        assert out.instance.F_eval is None
+    else:
+        assert out.instance.F_eval == lin_in.instance.F_eval, \
+            "F_eval must be preserved"
+
+    # W unchanged — batch restates the same witness with fewer rows in H/Y
+    assert out.witness.W == lin_in.witness.W, "W must be preserved"
+
+    # v_square preserved (W is the same)
+    assert out.v_square == lin_in.v_square, \
+        f"v_square should be preserved (W unchanged): {lin_in.v_square} → {out.v_square}"
+
+    # The LinRelation __post_init__ has already validated:
+    #   - H' · F · W = Y'   (so the random combination was applied consistently)
+    #   - column norm² ≤ v_square (still holds since W unchanged)
+    # i.e., if rok_batch combines H/Y inconsistently, this test explodes in
+    # __post_init__ with "relation doesn't hold".
+
+    print("  test_rok_batch_smoke: OK")
+
+
 def test_rok_fold_smoke():
     """
     Smoke test for rok_fold (Π^fold, paper §3.4.1).
@@ -320,14 +375,15 @@ def test_rok_fold_smoke():
     NOTE: TDD-style — will FAIL until rok_fold is implemented.
     """
     lin_in = _make_lin_relation_with_eval(variant=0)
-    out = rok_fold(lin_in)
+    r_out = 1
+    out = rok_fold(lin_in, r_out)
 
     # Type + structural invariants
     assert isinstance(out, LinRelation), \
         f"rok_fold must return LinRelation, got {type(out).__name__}"
 
-    # Witness width collapsed to 1
-    assert out.r == 1, f"folded r must be 1, got {out.r}"
+    # Witness width collapsed to r_out
+    assert out.r == r_out, f"folded r must be {r_out}, got {out.r}"
 
     # Other dims unchanged
     assert out.hat_n == lin_in.hat_n, f"hat_n changed: {lin_in.hat_n} → {out.hat_n}"
@@ -533,6 +589,9 @@ def main():
 
     print("fold.py")
     test_rok_fold_smoke()
+
+    print("batch.py")
+    test_rok_batch_smoke()
 
     print("\nAll tests passed.")
 

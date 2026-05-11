@@ -8,7 +8,6 @@ def rok_join(lin_0: LinRelation, lin_1: LinRelation) -> LinRelation:
     """
 
     """
-    assert lin_0.v_square == lin_1.v_square
     assert lin_0.m == lin_1.m
 
     def unpack(lin: LinRelation):
@@ -64,8 +63,10 @@ def rok_join(lin_0: LinRelation, lin_1: LinRelation) -> LinRelation:
     # W = [W_0, W_1]
     W_new = W_0.augment(W_1)
 
+    # \beta = max(\beta_1, \beta_2)
+    new_v_square = max(lin_0.v_square, lin_1.v_square)
     lin_joined = LinRelation(
-        LinInstance(H_new, F_0_top, F_new_bot, Y_new, lin_0.instance.v_square),
+        LinInstance(H_new, F_0_top, F_new_bot, Y_new, new_v_square),
         LinWitness(W_new),
     )
 
