@@ -48,21 +48,28 @@ Kevin is studying lattice-based folding schemes and ZK proof systems through a r
 
 ## Exercise Progression (flexible, Kevin drives the order)
 
-1. **Polynomial arithmetic in Z_q[X]/(X^d + 1)** — basic ring operations
-2. **NTT / INTT** — the ring isomorphism R_q ≅ F_{q^τ}^{d/τ}, hands-on
-3. **Ajtai commitment** — commit to low-norm vector, verify binding
-4. **Embedding comparison** — NTT vs coefficient embedding, observe norm behavior
-5. **Sumcheck (toy version)** — over a field, understand the protocol mechanics
-6. **Simple folding step** — random linear combination, norm growth
-7. **b-ary decomposition** — reduce norm at the cost of wider witness
-8. **CCS satisfaction check** — basic constraint system
-9. **ECC** — group law, scalar multiplication
-10. **Pairings** — bilinear maps, BLS signatures
-11. **Polynomial commitments** — KZG
-12. **Groth16** — R1CS, QAP
-13. **PLONK** — gates, permutation argument
-14. **FRI** — Reed-Solomon proximity testing
-15. **zkVM** — instruction traces, execution proofs
+Current state of `exercises/` (✓ = done, ◐ = in progress, ☐ = planned):
+
+### Lattice track
+- ✓ `01_ring_arith` — Polynomial arithmetic in Z_q[X]/(X^d + 1), norm
+- ✓ `02_ntt` — NTT / INTT (standard + negacyclic), R_q ≅ F_{q^τ}^{d/τ}
+- ✓ `03_field_ext` — Field extensions (Fp²)
+- ✓ `04_ajtai` — Ajtai commitment (M-SIS), SIS experiment
+- ✓ `05_sumcheck` — Multivariate sumcheck protocol (used by SALSAA)
+- ✓ `06_salsaa` — SALSAA folding scheme: full RoK chain (`join → norm → ⊗RP → fold → join → batch → b-decomp`), tests + smoke test passing
+
+Not yet broken out as separate exercises (concepts touched inside 06):
+- Embedding comparison (NTT vs coefficient)
+- CCS satisfaction check (consumed by SALSAA's `Σ^lin` relation)
+
+### SNARK/STARK track
+- ✓ `10_ecc` — ECC group law, scalar multiplication
+- ✓ `11_pairings` — Bilinear maps, BLS signatures (high-level)
+- ✓ `12_kzg` — KZG polynomial commitment
+- ✓ `13_groth16` — R1CS, QAP, Groth16 (simplified: no ZK, no public-input verification)
+- ☐ `14_plonk` — Gates, permutation argument (placeholder only)
+- ☐ `15_fri` — Reed-Solomon proximity testing (placeholder only)
+- ☐ `16_zkvm` — Instruction traces, execution proofs (placeholder only)
 
 ## Common Pitfalls to Watch For
 

@@ -6,17 +6,12 @@ Module layout:
   relations.py   — Σ^lin, Σ^norm, Σ^bar_sum, Σ^lde⊗ dataclasses (scaffolding)
   lde.py         — LDE polynomial over [D]^l hypercube
   sumcheck.py    — multivariate sumcheck protocol
-  norm_check.py  — rok_norm + rok_bar_sum sub-protocols
+  rok/           — RoK sub-protocols (join, norm, rp, fold, batch, decompose)
   salsaa.py      — main driver (this file)
 """
 from sage.all import *
 from ring import n_hat, n, d, m, r, _gen_random_low_norm_poly, Rq, beta
-from norm_check import rok_norm
-from join import rok_join
-from rp import rok_rp
-from fold import rok_fold
-from batch import rok_batch
-from decompose import rok_decompose, get_l
+from rok import rok_norm, rok_join, rok_rp, rok_fold, rok_batch, rok_decompose
 from relations import (
     LinInstance, LinWitness, LinRelation,
 )

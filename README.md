@@ -38,6 +38,8 @@ exercises/             .py implementations — structured learning progression
   02_ntt/              NTT / INTT
   03_field_ext/        Field extensions (Fp²)
   04_ajtai/            Ajtai commitment (Module-SIS)
+  05_sumcheck/         Multivariate sumcheck protocol
+  06_salsaa/           SALSAA lattice folding scheme (full RoK chain)
   10_ecc/              Elliptic curve cryptography
   11_pairings/         High-level usage of pairing, G_1, G_2, GT
   12_kzg/              KZG polynomial commitment
@@ -51,11 +53,8 @@ exercises/             .py implementations — structured learning progression
 - [x] 02 — NTT / INTT (standard + negacyclic)
 - [x] 03 — Field extensions (Fp²)
 - [x] 04 — Ajtai commitment (M-SIS), SIS experiment
-- [ ] 05 — Embedding comparison (NTT vs coefficient)
-- [ ] 06 — Sumcheck (toy version)
-- [ ] 07 — Simple folding step
-- [ ] 08 — b-ary decomposition
-- [ ] 09 — CCS satisfaction check
+- [x] 05 — Sumcheck (toy multivariate sumcheck protocol)
+- [x] 06 — SALSAA — full lattice folding RoK chain (`join → norm → ⊗RP → fold → join → batch → b-decomp`)
 
 ### SNARK/STARK track (10–16)
 - [x] 10 — ECC — group law, scalar multiplication

@@ -7,7 +7,7 @@ Norm-check sub-protocol for SALSAA.
 """
 import sys
 from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent / "02_ntt"))
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent / "02_ntt"))
 
 import random as rand
 from sage.all import *

@@ -10,11 +10,17 @@ from sage.all import *
 from ring import q, Fq, d, x, Rq, conjugate, to_centered, _gen_random_low_norm_poly
 from lde import lde_poly, pad_vec_to_d_exp, tensor_product
 from relations import LinInstance, LinWitness, LinRelation
-from join import rok_join
-from rp import rok_rp
-from fold import rok_fold
-from batch import rok_batch
-from decompose import rok_decompose, get_l, balanced_b_ary_decompose_Fq, compose_Fq, decompose_W
+from rok import (
+    rok_join,
+    rok_rp,
+    rok_fold,
+    rok_batch,
+    rok_decompose,
+    get_l,
+    balanced_b_ary_decompose_Fq,
+    compose_Fq,
+    decompose_W,
+)
 from salsaa import fold as salsaa_fold, gen_random_W, gen_random_F, gen_H
 from ring import n_hat as ring_n_hat, n as ring_n, m as ring_m, r as ring_r, beta as ring_beta
 
