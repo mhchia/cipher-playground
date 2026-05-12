@@ -14,6 +14,7 @@ from ring import n_hat, n, d, m, r, _gen_random_low_norm_poly, Rq, beta
 from norm_check import rok_norm
 from join import rok_join
 from rp import rok_rp
+from fold import rok_fold
 from relations import (
     LinInstance, LinWitness, LinRelation,
 )
@@ -65,6 +66,7 @@ def fold(lins: list[LinRelation]) -> LinRelation:
     assert lin_normed.n == lin_joined.n + 2
     assert lin_normed.m == lin_joined.m
     assert lin_normed.r == lin_joined.r
+    assert lin_normed.v_square == lin_joined.v_square
 
     #
     # ⊗RP: Perform Johnson-Lindenstrauss to improve soundness without using
@@ -76,6 +78,33 @@ def fold(lins: list[LinRelation]) -> LinRelation:
     m_rp = lin_normed.r * n_rp
     assert m_rp == n_rp * lin_normed.r
     lin_orig, lin_w_hat = rok_rp(lin_normed, n_rp, m_rp)
+    assert lin_orig.hat_n == lin_joined.hat_n + 3
+    assert lin_orig.n == lin_joined.n + 3
+    assert lin_orig.m == lin_joined.m
+    assert lin_orig.r == lin_joined.r
+    assert lin_orig.v_square == lin_joined.v_square
+
+    # Check lin_w_hat
+    assert lin_w_hat.hat_n == lin_joined.n_top + 1
+    assert lin_w_hat.n == lin_joined.n_top + 1
+    assert lin_w_hat.m == lin_joined.m
+    assert lin_w_hat.r == 1
+    assert lin_w_hat.v_square > lin_joined.v_square
+
+    #
+    # Fold
+    #
+    # Fold the witnesses of the main statements and output 1 relation
+    r_out = 1
+    lin_folded = rok_fold(lin_orig, r_out=r_out)
+
+    assert lin_folded.hat_n == lin_joined.hat_n + 3
+    assert lin_folded.n == lin_joined.n + 3
+    assert lin_folded.m == lin_joined.m
+    assert lin_folded.r == 1
+    assert lin_folded.v_square > lin_orig.v_square
+
+
 
     return lin_normed
 
