@@ -14,7 +14,7 @@ from join import rok_join
 from rp import rok_rp
 from fold import rok_fold
 from batch import rok_batch
-from decompose import rok_decompose, get_l, decompose_Fq, compose_Fq, decompose_W
+from decompose import rok_decompose, get_l, balanced_b_ary_decompose_Fq, compose_Fq, decompose_W
 
 
 # ============================================================
@@ -337,19 +337,29 @@ def test_get_l():
 def test_decompose_Fq_explicit():
     """Concrete digit lists for documented cases."""
     # 7 = 1 + 2 + 4 = 0b0111 → [1, 1, 1, 0]
-    assert decompose_Fq(Fq(7), 2, 4) == [Fq(1), Fq(1), Fq(1), Fq(0)]
+    assert balanced_b_ary_decompose_Fq(Fq(7), 2, 4) == [Fq(1), Fq(1), Fq(1), Fq(0)]
     # Sign carries through: -7 → [-1, -1, -1, 0]
-    assert decompose_Fq(Fq(-7), 2, 4) == [Fq(-1), Fq(-1), Fq(-1), Fq(0)]
+    assert balanced_b_ary_decompose_Fq(Fq(-7), 2, 4) == [Fq(-1), Fq(-1), Fq(-1), Fq(0)]
     # Zero → all zeros
-    assert decompose_Fq(Fq(0), 2, 4) == [Fq(0)] * 4
+    assert balanced_b_ary_decompose_Fq(Fq(0), 2, 4) == [Fq(0)] * 4
+    # Balanced ternary stress test: 5 with b=3 exercises the carry step.
+    # Non-balanced would give [2, 1] (digit 2 ∉ {-1, 0, 1}); balanced uses
+    # carry to push 2 → -1 with +3 added to the next position:
+    #   5 = (-1)·1 + (-1)·3 + 1·9 → [-1, -1, 1]
+    assert balanced_b_ary_decompose_Fq(Fq(5), 3, 3) == [Fq(-1), Fq(-1), Fq(1)]
+    # Sign symmetry for the same case
+    assert balanced_b_ary_decompose_Fq(Fq(-5), 3, 3) == [Fq(1), Fq(1), Fq(-1)]
     print("  test_decompose_Fq_explicit: OK")
 
 
 def test_compose_Fq_explicit():
-    """Reverse of decompose_Fq on the same documented cases."""
+    """Reverse of balanced_b_ary_decompose_Fq on the same documented cases."""
     assert compose_Fq([Fq(1), Fq(1), Fq(1), Fq(0)], 2) == Fq(7)
     assert compose_Fq([Fq(-1), Fq(-1), Fq(-1), Fq(0)], 2) == Fq(-7)
     assert compose_Fq([Fq(0)] * 4, 2) == Fq(0)
+    # Balanced ternary recompose: [-1, -1, 1] · (1, 3, 9) = -1 - 3 + 9 = 5
+    assert compose_Fq([Fq(-1), Fq(-1), Fq(1)], 3) == Fq(5)
+    assert compose_Fq([Fq(1), Fq(1), Fq(-1)], 3) == Fq(-5)
     print("  test_compose_Fq_explicit: OK")
 
 
@@ -360,9 +370,9 @@ def test_decompose_Fq_roundtrip():
             l = get_l(beta, b)
             for f_int in range(-beta, beta + 1):
                 f = Fq(f_int)
-                coeffs = decompose_Fq(f, b, l)
+                coeffs = balanced_b_ary_decompose_Fq(f, b, l)
                 assert len(coeffs) == l, \
-                    f"decompose_Fq must return ℓ={l} digits, got {len(coeffs)}"
+                    f"balanced_b_ary_decompose_Fq must return ℓ={l} digits, got {len(coeffs)}"
                 f_back = compose_Fq(coeffs, b)
                 assert f_back == f, \
                     f"roundtrip mismatch: f={f_int}, b={b}, β={beta}, " \

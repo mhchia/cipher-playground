@@ -69,6 +69,9 @@ def conjugate(r):
 
 
 def to_centered(c):
+    """
+    Represent Z_q as [-\ceil{q/2}, \floor{q/2}]
+    """
     v = int(c)
     return v - q if v > q // 2 else v
 

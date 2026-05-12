@@ -16,19 +16,31 @@ def get_l(beta: int, b: int) -> int:
     return l
 
 
-def decompose_Fq(f: Fq, b: int, l: int) -> list[Fq]:
+def balanced_b_ary_decompose_Fq(f: Fq, b: int, l: int) -> list[Fq]:
     """
-    b = 2
-    f = 7   -> [ 1,  1,  1,  0, ...]
-    f = -7  -> [-1, -1, -1,  0, ...]
+    E.g. b = 2. f = 7
+        -> [ 1,  1,  1,  0, ...]
+    E.g. b = 2. f = -7
+        -> [-1, -1, -1,  0, ...]
+    E.g. b = 3. f = 5
+        -> [-1, -1,  1,  0, ...]
     """
+    assert b > 0
+    assert l > 0
     f_ct = to_centered(f)
     sign = -1 if f_ct < 0 else 1
-    f_abs = -f_ct if f_ct < 0 else f_ct
+    f_abs = abs(f_ct)
 
     coeffs = []
     for _ in range(l):
         r = f_abs % b
+        # We want each digit \in [-b/2, b/2]
+        if r > b // 2:
+            # r > b/2..., need to make it back in range
+            # Make this digit becomes negative so it's within [-b/2, 0]
+            r = r - b
+            # Since we deduct r by b, add it back to f_abs as "carry"
+            f_abs += b
         coeffs.append(Fq(sign * r))
         f_abs = f_abs // b
     return coeffs
@@ -47,7 +59,7 @@ def decompose_W(W: matrix, b: int, l: int) -> list[matrix]:
         cur_bit_polys = [Rq(0) for _ in range(l)]
         for exp, c in enumerate(r.list()):
             # c*x^{exp}
-            c_decomposed = decompose_Fq(c, b, l)
+            c_decomposed = balanced_b_ary_decompose_Fq(c, b, l)
             # c*x^i = (d_0*b^0 + d_1*b^1 + ...) * x^i
             #       = d_0*b^0*x^i + d_1*b^1*x^i + ...
             #            V_0            V_1     ...
@@ -94,7 +106,7 @@ def rok_decompose(lin: LinRelation, b: int) -> LinRelation:
     for Z_k in Zs[1:]:
         Z_tilde = Z_tilde.augment(Z_k)
 
-    new_v_square = lin.m * d * ((b-1)**2)
+    new_v_square = lin.m * d * ((b // 2)**2)
     # Verfy H*F*Z_tilde = Y_tilde
     return LinRelation(
         instance=LinInstance(
