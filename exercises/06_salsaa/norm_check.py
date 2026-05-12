@@ -221,9 +221,6 @@ def rok_bar_sum(t, W):
 
 
 def rok_norm(lin_r, v_square) -> LinRelation:
-    H = lin_r.instance.H
-    F = lin_r.instance.F
-    Y = lin_r.instance.Y
     W = lin_r.witness.W
 
     #

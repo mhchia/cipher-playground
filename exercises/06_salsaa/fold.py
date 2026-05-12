@@ -17,7 +17,8 @@ def sample_C(r_in: int, r_out):
     # with ternary coefficients is not strong samplings sets per definition,
     # but the probability of sampling elements so that the inverse of two is non-invertible is small.
     import random
-
+    # FIXME: this should be random poly with ternary coefficients instead of
+    # only ternary constant terms lol
     return matrix(
         Rq,
         r_in,

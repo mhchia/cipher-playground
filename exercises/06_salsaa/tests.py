@@ -14,6 +14,7 @@ from join import rok_join
 from rp import rok_rp
 from fold import rok_fold
 from batch import rok_batch
+from decompose import rok_decompose, get_l, decompose_Fq, compose_Fq, decompose_W
 
 
 # ============================================================
@@ -310,6 +311,169 @@ def test_rok_rp_smoke():
     print("  test_rok_rp_smoke: OK")
 
 
+# ============================================================
+# decompose.py
+# ============================================================
+
+def test_get_l():
+    """ℓ = number of base-b digits needed for the range [-β, β]."""
+    # β=1, b=2: 2β+1=3, need 2 binary digits
+    assert get_l(1, 2) == 2
+    # β=4, b=2: 2β+1=9, need 4 binary digits
+    assert get_l(4, 2) == 4
+    # β=7, b=3: 2β+1=15, need 3 ternary digits
+    assert get_l(7, 3) == 3
+
+    # β=0 must fire assertion (zero range is degenerate)
+    raised = False
+    try:
+        get_l(0, 2)
+    except AssertionError:
+        raised = True
+    assert raised, "get_l should reject β=0"
+    print("  test_get_l: OK")
+
+
+def test_decompose_Fq_explicit():
+    """Concrete digit lists for documented cases."""
+    # 7 = 1 + 2 + 4 = 0b0111 → [1, 1, 1, 0]
+    assert decompose_Fq(Fq(7), 2, 4) == [Fq(1), Fq(1), Fq(1), Fq(0)]
+    # Sign carries through: -7 → [-1, -1, -1, 0]
+    assert decompose_Fq(Fq(-7), 2, 4) == [Fq(-1), Fq(-1), Fq(-1), Fq(0)]
+    # Zero → all zeros
+    assert decompose_Fq(Fq(0), 2, 4) == [Fq(0)] * 4
+    print("  test_decompose_Fq_explicit: OK")
+
+
+def test_compose_Fq_explicit():
+    """Reverse of decompose_Fq on the same documented cases."""
+    assert compose_Fq([Fq(1), Fq(1), Fq(1), Fq(0)], 2) == Fq(7)
+    assert compose_Fq([Fq(-1), Fq(-1), Fq(-1), Fq(0)], 2) == Fq(-7)
+    assert compose_Fq([Fq(0)] * 4, 2) == Fq(0)
+    print("  test_compose_Fq_explicit: OK")
+
+
+def test_decompose_Fq_roundtrip():
+    """compose(decompose(f)) == f for all f ∈ [-β, β] and several (b, β)."""
+    for b in [2, 3]:
+        for beta in [1, 4, 7]:
+            l = get_l(beta, b)
+            for f_int in range(-beta, beta + 1):
+                f = Fq(f_int)
+                coeffs = decompose_Fq(f, b, l)
+                assert len(coeffs) == l, \
+                    f"decompose_Fq must return ℓ={l} digits, got {len(coeffs)}"
+                f_back = compose_Fq(coeffs, b)
+                assert f_back == f, \
+                    f"roundtrip mismatch: f={f_int}, b={b}, β={beta}, " \
+                    f"coeffs={coeffs}, got {f_back}"
+    print("  test_decompose_Fq_roundtrip: OK")
+
+
+def test_decompose_W_roundtrip():
+    """W = Σ_k b^k · V_k where V = decompose_W(W, b, ℓ)."""
+    W = matrix(Rq, [
+        [Rq(1) + 2*x,    Rq(3)],
+        [Rq(0),          Rq(-1) - x**2],
+    ])
+    b = 2
+    beta = 4  # max coeff magnitude in W is 3; β=4 gives a safe ℓ
+    l = get_l(beta, b)
+    V = decompose_W(W, b, l)
+
+    # Shape
+    assert len(V) == l, f"expected ℓ={l} matrices, got {len(V)}"
+    for k, V_k in enumerate(V):
+        assert V_k.nrows() == W.nrows(), f"V_{k} row count mismatch"
+        assert V_k.ncols() == W.ncols(), f"V_{k} col count mismatch"
+
+    # Round-trip: Σ_k b^k · V_k must reassemble to W
+    W_back = sum([(b ** k) * V[k] for k in range(l)])
+    assert W_back == W, f"roundtrip failed:\n  W={W}\n  W_back={W_back}"
+    print("  test_decompose_W_roundtrip: OK")
+
+
+def test_decompose_W_norm_bound():
+    """Every coefficient of every V_k lives in {-(b-1), ..., b-1}."""
+    W = matrix(Rq, [
+        [Rq(7),       Rq(-3) * x],
+        [5 * x**2,    Rq(0)],
+    ])
+    b = 2
+    beta = 7
+    l = get_l(beta, b)
+    V = decompose_W(W, b, l)
+
+    for k, V_k in enumerate(V):
+        for poly in V_k.list():
+            for c in poly.list():
+                cv = to_centered(c)
+                assert abs(cv) <= b - 1, \
+                    f"V_{k} has coeff with |cv|={abs(cv)} > b-1={b-1}"
+    print("  test_decompose_W_norm_bound: OK")
+
+
+def test_rok_decompose_smoke():
+    """
+    Smoke test for rok_decompose (Π^b-decomp).
+
+    Decomposes the witness into ℓ small-norm chunks:
+        W = Σ_{k=0..ℓ-1} b^k · V_k         with V_k entries in {-⌊b/2⌋, ..., ⌊b/2⌋}
+        ℓ = ⌈log_b(2β + 1)⌉
+
+    Effect on shape:
+        Ŵ = (V_0 | V_1 | ... | V_{ℓ-1})    r grows: r → ℓ·r
+        Ŷ = (Z_0 | Z_1 | ... | Z_{ℓ-1})    where Z_k = H·F·V_k
+        H, F, m, n, hat_n preserved
+        v_square shrinks (per-entry coefficients tighten)
+
+    NOTE: TDD-style — will FAIL until rok_decompose is implemented.
+    Assumes signature `rok_decompose(lin, b)` mirroring the param pattern
+    of `rok_fold(lin, r_out)` and `rok_batch(lin, n_target_eval_rows)`.
+    """
+    lin_in = _make_lin_relation_with_eval(variant=0)
+    b = 2
+    out = rok_decompose(lin_in, b)
+
+    # Type
+    assert isinstance(out, LinRelation), \
+        f"rok_decompose must return LinRelation, got {type(out).__name__}"
+
+    # m, n, hat_n unchanged (decomp only touches W column count and Y)
+    assert out.m == lin_in.m, f"m changed: {lin_in.m} → {out.m}"
+    assert out.n == lin_in.n, f"n changed: {lin_in.n} → {out.n}"
+    assert out.hat_n == lin_in.hat_n, f"hat_n changed: {lin_in.hat_n} → {out.hat_n}"
+
+    # F (both halves) and H unchanged — decomp doesn't touch the statement side
+    assert out.instance.F_com == lin_in.instance.F_com, "F_com must be preserved"
+    if lin_in.instance.F_eval is None:
+        assert out.instance.F_eval is None
+    else:
+        assert out.instance.F_eval == lin_in.instance.F_eval, "F_eval must be preserved"
+    assert out.instance.H == lin_in.instance.H, "H must be preserved"
+
+    # Witness width grew by an integer factor (= ℓ > 1 for non-trivial β/b).
+    # For the test fixture (v_square = 16 ⇒ β = 4) and b = 2, ℓ = ⌈log_2(9)⌉ = 4.
+    assert out.r > lin_in.r, \
+        f"r must strictly grow (decomp must widen witness for β > ⌊b/2⌋): {lin_in.r} → {out.r}"
+    assert out.r % lin_in.r == 0, \
+        f"r must grow by integer factor ℓ: {lin_in.r} → {out.r}"
+    ell = out.r // lin_in.r
+    assert ell > 1, f"ℓ must be > 1 for non-trivial decomposition, got {ell}"
+
+    # v_square should not increase (per-entry bound tightens with decomposition).
+    # The LinRelation __post_init__ has already validated that the *actual* column
+    # norms of Ŵ fit within out.v_square, so this is just a sanity bound.
+    assert out.v_square <= lin_in.v_square, \
+        f"v_square must not grow: {lin_in.v_square} → {out.v_square}"
+
+    # The LinRelation __post_init__ has already validated:
+    #   - H · F · Ŵ = Ŷ                       (decomp arithmetic consistent)
+    #   - max_k ‖V_k‖² ≤ out.v_square           (each level fits the tighter bound)
+
+    print("  test_rok_decompose_smoke: OK")
+
+
 def test_rok_batch_smoke():
     """
     Smoke test for rok_batch (Π^batch).
@@ -592,6 +756,15 @@ def main():
 
     print("batch.py")
     test_rok_batch_smoke()
+
+    print("decompose.py")
+    test_get_l()
+    test_decompose_Fq_explicit()
+    test_compose_Fq_explicit()
+    test_decompose_Fq_roundtrip()
+    test_decompose_W_roundtrip()
+    test_decompose_W_norm_bound()
+    test_rok_decompose_smoke()
 
     print("\nAll tests passed.")
 
