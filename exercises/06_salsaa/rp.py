@@ -2,7 +2,7 @@ from sage.all import *
 
 from relations import LinRelation, LinInstance, LinWitness
 
-from ring import Rq, n_hat
+from ring import Rq
 
 def _sample_J_entry():
     import random
@@ -36,7 +36,7 @@ def rok_rp(lin: LinRelation, n_rp: int, m_rp: int) -> tuple[LinRelation, LinRela
     - lin_w_hat: \hat w commitment and its low norm
     """
 
-    m, n, n_top, r, F_com, F_eval, H, Y = lin.m, lin.n, lin.n_top, lin.r, lin.instance.F_com, lin.instance.F_eval, lin.instance.H, lin.instance.Y
+    n_hat, m, n, n_top, r, F_com, F_eval, H, Y = lin.hat_n, lin.m, lin.n, lin.n_top, lin.r, lin.instance.F_com, lin.instance.F_eval, lin.instance.H, lin.instance.Y
     W = lin.witness.W
 
     assert m_rp == n_rp * r, f"need m_rp = n_rp·r, got m_rp={m_rp}, n_rp={n_rp}, r={r}"
@@ -105,10 +105,7 @@ def rok_rp(lin: LinRelation, n_rp: int, m_rp: int) -> tuple[LinRelation, LinRela
     assert H_tilde.nrows() == n_hat + 1
     assert H_tilde.ncols() == n + 1
 
-    if F_eval is None:
-        F_eval_tilde = matrix(Rq, [c_1_vec * J_hat])
-    else:
-        F_eval_tilde = F_eval.stack([c_1_vec * J_hat])
+    F_eval_tilde = F_eval.stack(c_1_vec * J_hat)
 
     Y_tilde = Y.stack(r_vec)
     assert Y_tilde.nrows() == n_hat + 1

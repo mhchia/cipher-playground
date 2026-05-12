@@ -12,12 +12,11 @@ Module layout:
 from sage.all import *
 from ring import n_hat, n, d, m, r, _gen_random_low_norm_poly, Rq, beta
 from norm_check import rok_norm
+from join import rok_join
+from rp import rok_rp
 from relations import (
     LinInstance, LinWitness, LinRelation,
-    NormInstance, NormWitness, NormRelation,
-    BarSumInstance, BarSumRelation, LDETensorInstance, LDETensorRelation
 )
-from lde import tensor_product
 
 
 def gen_random_W(_m: int, _r: int):
@@ -46,8 +45,39 @@ def gen_H(_n_hat: int, _n: int):
     return H
 
 
-def rok_join(lin_1: LinRelation, lin_2: LinRelation) -> LinRelation:
-    pass
+def fold(lins: list[LinRelation]) -> LinRelation:
+    L = len(lins)
+
+    #
+    # Join L instances to 1
+    #
+    lin_joined = lins[0]
+    for i in range(1, L):
+        lin_joined = rok_join(lin_joined, lins[i])
+
+
+    #
+    # Norm check
+    #
+    lin_normed = rok_norm(lin_joined)
+
+    assert lin_normed.hat_n == lin_joined.hat_n + 2
+    assert lin_normed.n == lin_joined.n + 2
+    assert lin_normed.m == lin_joined.m
+    assert lin_normed.r == lin_joined.r
+
+    #
+    # ⊗RP: Perform Johnson-Lindenstrauss to improve soundness without using
+    #   a subtractive set.
+    #
+    # FIXME: Hardcode n_rp and m_rp for now
+    # n_rp should be a security parameter!
+    n_rp = 1
+    m_rp = lin_normed.r * n_rp
+    assert m_rp == n_rp * lin_normed.r
+    lin_orig, lin_w_hat = rok_rp(lin_normed, n_rp, m_rp)
+
+    return lin_normed
 
 
 def main():
@@ -79,7 +109,6 @@ def main():
     # Norm check
     #
 
-    lin_norm_r = rok_norm(lin_r, v_square)
 
 
     # ============================================================
@@ -124,7 +153,3 @@ def main():
     # z = _gen_random_low_norm_witness(Rq, m, beta)
     # c = ajtai_commit(A, z)
     # # print(f"Ajtai commit OK: {c=}")
-
-
-if __name__ == '__main__':
-    main()

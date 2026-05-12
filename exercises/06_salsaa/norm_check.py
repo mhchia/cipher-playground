@@ -14,7 +14,7 @@ from sage.all import *
 from ntt import ntt, intt
 
 from ring import (
-    q, d, Fq, Rq, x, e, m, r, D, beta,
+    q, d, Fq, Rq, x, e, D,
     conjugate, _gen_random_low_norm_poly,
 )
 from relations import LinInstance, LinRelation, LinWitness
@@ -28,7 +28,7 @@ def get_u_vec(Fq, r: int, d: int, e: int):
     return u_vec
 
 
-def rok_bar_sum(t, W):
+def rok_bar_sum(r, t, W):
 
     #
     # Verifier
@@ -220,8 +220,10 @@ def rok_bar_sum(t, W):
 
 
 
-def rok_norm(lin_r, v_square) -> LinRelation:
+def rok_norm(lin_r: LinRelation) -> LinRelation:
     W = lin_r.witness.W
+    m = lin_r.m
+    r = lin_r.r
 
     #
     # Prover
@@ -256,10 +258,10 @@ def rok_norm(lin_r, v_square) -> LinRelation:
     # ct(t_i) = |w_i|^2, and should be \lte \beta^2
     for i in range(r):
         norm_w_i_square = t[i].list()[0]
-        assert norm_w_i_square <= v_square, f"norm_w_i_square is not <= v^2: {norm_w_i_square=}, {v_square=}"
+        assert norm_w_i_square <= lin_r.v_square, f"norm_w_i_square is not <= v^2: {norm_w_i_square=}, {v_square=}"
 
     # P and V go on to rok \bar sum
-    (r_0, s_0), (r_1, s_1) = rok_bar_sum(t, W)
+    (r_0, s_0), (r_1, s_1) = rok_bar_sum(r, t, W)
 
     # Embed s_1, s_2 into HFW = Y
     new_F_rows = matrix(Rq, [
@@ -270,6 +272,7 @@ def rok_norm(lin_r, v_square) -> LinRelation:
         s_0,
         s_1,
     ])
+    print(f"{new_Y_rows.nrows()=}, {new_Y_rows.ncols()=},{new_Y_rows=}")
     lin_r_new = LinRelation(
         instance=lin_r.instance.with_extra_eval(
             new_F_rows=new_F_rows,

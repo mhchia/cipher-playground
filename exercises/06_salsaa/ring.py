@@ -17,8 +17,10 @@ from ajtai import _l_inf_norm_Rq, _l_inf_norm_vec
 # Ring: R_q = Z_q[X]/(X^d+1)
 # ============================================================
 q = 17
-Fq = GF(q)
 d = 4
+# q = 12289
+# d = 1024
+Fq = GF(q)
 R = PolynomialRing(Fq, 'X')
 X = R.gen()
 Rq = R.quotient(X**d + 1, 'x')

@@ -44,8 +44,9 @@ class LinInstance:
 
     @property
     def F(self):
-        if self.F_eval is None:
-            return self.F_com
+        # if self.F_eval is None:
+        #     return self.F_com
+        print(f"{self.F_eval=}")
         return self.F_com.stack(self.F_eval)
 
     @property
@@ -68,10 +69,7 @@ class LinInstance:
         """
         Append eval rows
         """
-        if self.F_eval is None:
-            new_F_eval = new_F_rows
-        else:
-            new_F_eval = self.F_eval.stack(new_F_rows)
+        new_F_eval = self.F_eval.stack(new_F_rows)
         # TODO: fix H. Now we just extend H with identity matrix.
         n_new_F_rows = new_F_rows.nrows()
         n_hat = self.H.nrows()
@@ -92,10 +90,15 @@ class LinInstance:
         _assert_matrix("H", self.H)
         _assert_matrix("F_com", self.F_com)
         _assert_matrix("Y", self.Y)
-        if self.F_eval is not None:
-            _assert_matrix("F_eval", self.F_eval)
-            assert self.F_com.ncols() == self.F_eval.ncols(), \
-                f"F_com/F_eval width mismatch: F_com cols={self.F_com.ncols()}, F_eval cols={self.F_eval.ncols()}"
+        if self.F_eval is None:
+            # Overwrite F_eval with a zero matrix
+            object.__setattr__(
+                self, 'F_eval',
+                zero_matrix(Rq, 0, self.F_com.ncols()),
+            )
+        _assert_matrix("F_eval", self.F_eval)
+        assert self.F_com.ncols() == self.F_eval.ncols(), \
+            f"F_com/F_eval width mismatch: F_com cols={self.F_com.ncols()}, F_eval cols={self.F_eval.ncols()}"
 
 
 

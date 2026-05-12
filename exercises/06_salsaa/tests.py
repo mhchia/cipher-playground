@@ -15,6 +15,8 @@ from rp import rok_rp
 from fold import rok_fold
 from batch import rok_batch
 from decompose import rok_decompose, get_l, balanced_b_ary_decompose_Fq, compose_Fq, decompose_W
+from salsaa import fold as salsaa_fold, gen_random_W, gen_random_F, gen_H
+from ring import n_hat as ring_n_hat, n as ring_n, m as ring_m, r as ring_r, beta as ring_beta
 
 
 # ============================================================
@@ -423,6 +425,87 @@ def test_decompose_W_norm_bound():
     print("  test_decompose_W_norm_bound: OK")
 
 
+def _make_lins_for_salsaa_fold(L: int = 2):
+    """
+    Build L satisfying LinRelations to feed into the top-level `salsaa.fold(lins)`.
+
+    Mirrors the pattern from salsaa.main() but generates L instances instead of 1:
+      H = I_{n_hat}                    (identity — no batching)
+      F_com shared across all L        (per SALSAA join's commitment-scheme invariant)
+      W per-instance, random low-norm  (each from `_gen_random_low_norm_poly`)
+      F_eval = None                    (matches main(): commitment-only, no eval rows yet)
+      Y = H · F_com · W                (computed per instance)
+
+    Norm budget (matches main()):
+      beta_square = d                  (each ring coef ∈ {-1, 0, 1} ⇒ ‖w_ij‖² ≤ d)
+      v_square    = m · beta_square    (m ring entries per column)
+    """
+    H = gen_H(ring_n_hat, ring_n)
+    F_com = gen_random_F(ring_n, ring_m)   # shared across all L
+    beta_square = d
+    v_square = ring_m * beta_square
+
+    lins = []
+    for _ in range(L):
+        W = gen_random_W(ring_m, ring_r)
+        Y = H * F_com * W
+        lins.append(LinRelation(
+            instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, v_square=v_square),
+            witness=LinWitness(W),
+        ))
+    return lins
+
+
+def test_salsaa_fold_smoke():
+    """
+    Smoke test for `salsaa.fold(lins)` — the top-level round driver.
+
+    `fold(lins)` is expected to chain together one round of the SALSAA pipeline:
+      join → norm → ⊗RP → fold → join(2) → batch → b-decomp
+    feeding L fresh LinRelations in and producing one accumulator LinRelation out.
+
+    NOTE: TDD-style — will FAIL until salsaa.fold is implemented.
+    Assertions are deliberately loose (just structural invariants); tighten
+    once the chain shape and parameter choices crystallize.
+    """
+    L = 2
+    lins = _make_lins_for_salsaa_fold(L)
+
+    # Sanity-check the fixture itself before feeding into fold
+    assert len(lins) == L
+    for lin in lins:
+        assert isinstance(lin, LinRelation)
+    # All instances must share F_com (join's invariant)
+    for lin in lins[1:]:
+        assert lin.instance.F_com == lins[0].instance.F_com, \
+            "All input LinRelations must share F_com"
+
+    # Run one round
+    out = salsaa_fold(lins)
+
+    # Output type
+    assert isinstance(out, LinRelation), \
+        f"salsaa.fold must return LinRelation, got {type(out).__name__}"
+
+    # m (witness rows / commitment width) is preserved across the chain
+    assert out.m == lins[0].m, \
+        f"m changed: {lins[0].m} → {out.m}"
+
+    # F_com (Ajtai commitment matrix) is preserved across the chain
+    # — every sub-protocol takes a row-side or column-side action but never
+    # rewrites the commitment matrix itself.
+    assert out.instance.F_com == lins[0].instance.F_com, \
+        "F_com must be preserved end-to-end across the chain"
+
+    # The LinRelation __post_init__ has already validated:
+    #   - H · F · W = Y  on the output (chain produces a valid relation)
+    #   - col_norm² ≤ v_square  (norm bounds were tracked correctly through the chain)
+    # If any sub-protocol's bound is too tight or any algebra is wrong, the
+    # offending step's __post_init__ explodes here with a precise message.
+
+    print("  test_salsaa_fold_smoke: OK")
+
+
 def test_rok_decompose_smoke():
     """
     Smoke test for rok_decompose (Π^b-decomp).
@@ -775,6 +858,9 @@ def main():
     test_decompose_W_roundtrip()
     test_decompose_W_norm_bound()
     test_rok_decompose_smoke()
+
+    print("salsaa.py")
+    test_salsaa_fold_smoke()
 
     print("\nAll tests passed.")
 
