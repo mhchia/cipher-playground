@@ -33,6 +33,7 @@ sage -python exercises/06_salsaa/tests.py
 ## To-Dos
 
 Must
+- [ ] Support R1CS
 - [ ] Check parameters for security: q, d, n_rp
 
 Better
