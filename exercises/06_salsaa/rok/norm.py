@@ -15,7 +15,7 @@ from ntt import ntt, intt
 
 from ring import (
     q, d, Fq, Rq, x, e, D,
-    conjugate, _gen_random_low_norm_poly,
+    conjugate
 )
 from relations import LinInstance, LinRelation, LinWitness
 from lde import lde_poly, tensor_product
@@ -28,8 +28,7 @@ def get_u_vec(Fq, r: int, d: int, e: int):
     return u_vec
 
 
-def rok_bar_sum(r, t, W):
-
+def rok_bar_sum(r: int, t: list[Rq], W: matrix) -> tuple[tuple[list[Rq], list[Rq]], tuple[list[Rq], list[Rq]]]:
     #
     # Verifier
     #
@@ -217,7 +216,6 @@ def rok_bar_sum(r, t, W):
         (r_T, s0_rqs),
         (r_T_bar, s1_rqs),
     )
-
 
 
 def rok_norm(lin_r: LinRelation) -> LinRelation:

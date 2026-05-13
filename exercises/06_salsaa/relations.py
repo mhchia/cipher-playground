@@ -44,9 +44,6 @@ class LinInstance:
 
     @property
     def F(self):
-        # if self.F_eval is None:
-        #     return self.F_com
-        print(f"{self.F_eval=}")
         return self.F_com.stack(self.F_eval)
 
     @property
@@ -70,7 +67,6 @@ class LinInstance:
         Append eval rows
         """
         new_F_eval = self.F_eval.stack(new_F_rows)
-        # TODO: fix H. Now we just extend H with identity matrix.
         n_new_F_rows = new_F_rows.nrows()
         n_hat = self.H.nrows()
         n = self.F.nrows()

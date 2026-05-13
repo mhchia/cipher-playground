@@ -11,7 +11,7 @@ Module layout:
 """
 from sage.all import *
 from ring import n_hat, n, d, m, r, _gen_random_low_norm_poly, Rq, beta
-from rok import rok_norm, rok_join, rok_rp, rok_fold, rok_batch, rok_decompose
+from rok import rok_norm, rok_join, rok_rp, rok_fold, rok_batch, rok_decompose, get_l
 from relations import (
     LinInstance, LinWitness, LinRelation,
 )
@@ -43,14 +43,24 @@ def gen_H(_n_hat: int, _n: int):
     return H
 
 
-def fold(lins: list[LinRelation]) -> LinRelation:
+def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
     """
     The whole chain of folding schmeme in SALSAA paper.
     Π^join → Π^norm → Π^⊗RP → Π^fold → Π^join → Π^batch → Π^b-decomp
                              →
     Input:  L lin relations
     Output: 1 lin relations
+
+    Params
+    - lins: L instances to be folded
+    - b (default=2): `b` in b-ary decomposition
+    - r_out (default=1): `r_out` relation = 1
+    - n_rp (default=1): the n_{rp} in rok rp. `n_rp` should be a security parameter
+        - TODO: choose a proper number
     """
+    #
+    # Configs
+    #
 
     L = len(lins)
 
@@ -77,9 +87,6 @@ def fold(lins: list[LinRelation]) -> LinRelation:
     # ⊗RP: Perform Johnson-Lindenstrauss to improve soundness without using
     #   a subtractive set.
     #
-    # FIXME: Hardcode n_rp and m_rp for now
-    # n_rp should be a security parameter!
-    n_rp = 1
     m_rp = lin_normed.r * n_rp
     assert m_rp == n_rp * lin_normed.r
     lin_orig, lin_w_hat = rok_rp(lin_normed, n_rp, m_rp)
@@ -99,8 +106,7 @@ def fold(lins: list[LinRelation]) -> LinRelation:
     #
     # Fold
     #
-    # Fold the witnesses of the main statements and output 1 relation
-    r_out = 1
+    # Fold the witnesses of the main statements and output `r_out` relation
     lin_folded = rok_fold(lin_orig, r_out=r_out)
 
     assert lin_folded.hat_n == lin_joined.hat_n + 3
@@ -139,92 +145,24 @@ def fold(lins: list[LinRelation]) -> LinRelation:
     #
     # b-ary decomposition to lower the norm bound back
     #
-    b = 2
-    # l = get_l()
     lin_decomposed = rok_decompose(lin_batched, b)
 
     assert lin_decomposed.hat_n == lin_joined.hat_n
     assert lin_decomposed.n == lin_joined.n + 4
     assert lin_decomposed.m == lin_joined.m
-    # TODO: Check r = 2*l
-    # assert lin_decomposed.r ==
-    # TODO: Check norm
-    assert lin_decomposed.v_square < lin_merged.v_square
+
+    l = get_l(isqrt(lin_batched.v_square), b)
+    # New Y is \tilde Z = [Z_0 || ... || Z_{l-1}]
+    # and Z_i \in R^{m x r_old}, so r_new is `r_old * l`
+    assert lin_decomposed.r == lin_batched.r * l
+
+
+    # each coeff \in [-b/2, b/2], one Rq has d coeffs, and one column has m Rqs
+    assert lin_decomposed.v_square == lin_decomposed.m * d * ((b // 2) ** 2)
+
+    assert lin_decomposed.v_square <= lin_joined.v_square, \
+        "norm budget must not exceed round-start (else next round won't compose)"
+
     print(f"salsaa.fold finished! Norm^2 goes down: {lin_merged.v_square} → {lin_decomposed.v_square}. Original norm^2: {lin_joined.v_square}")
 
     return lin_decomposed
-
-
-# def main():
-#     # R_q should be small, like {-1,0,1}^d.
-#     # assume beta^2 = d
-#     beta_square = d
-#     # for each w_i \in R^m, |w_i| = |w_{i,1}|^2 + ... + |w_{i,m}|^2 <= beta
-#     v_square = m * beta_square
-
-#     # TODO: now we only have commitment but evaluation. should add evaluation
-#     # and thus H, F need to be changed.
-#     # W \in R_q^{m*r}
-#     H = gen_H(n_hat, n)
-#     F = gen_random_F(n, m)
-#     W = gen_random_W(m, r)
-#     Y = H * F * W
-#     print(f"{H=}")
-#     print(f"{F=}")
-#     print(f"{W=}")
-#     print(f"{Y=}")
-
-#     lin_r = LinRelation(
-#         instance=LinInstance(H=H, F_com=F, F_eval=None, Y=Y, v_square=v_square),
-#         witness=LinWitness(W),
-#     )
-#     print(f"{lin_r=}")
-
-#     #
-#     # Norm check
-#     #
-
-
-
-#     # ============================================================
-#     # 1. Challenge spaces
-#     # ============================================================
-
-#     # TODO: define C_small, sample challenges
-
-
-
-
-#     # ============================================================
-#     # 5. Decomposition
-#     # ============================================================
-
-#     # TODO: b-ary decomposition
-
-
-#     # ============================================================
-#     # 6. Norm check
-#     # ============================================================
-
-#     # TODO: post-folding norm verification
-
-
-#     # ============================================================
-#     # 7. Folding
-#     # ============================================================
-
-
-#     # ============================================================
-#     # 4. Support R1CS and CCS (Customizable Constraint System)
-#     # ============================================================
-#     # TODO: support R1CS
-#     # TODO: convert R1CS to CCS
-
-
-#     # TODO: fold two CCS instances
-
-#     # # Verify imports work
-#     # A = ajtai_setup(kappa, m, Rq)
-#     # z = _gen_random_low_norm_witness(Rq, m, beta)
-#     # c = ajtai_commit(A, z)
-#     # # print(f"Ajtai commit OK: {c=}")

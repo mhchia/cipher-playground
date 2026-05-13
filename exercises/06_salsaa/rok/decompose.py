@@ -73,7 +73,8 @@ def decompose_W(W: matrix, b: int, l: int) -> list[matrix]:
 
 
 def rok_decompose(lin: LinRelation, b: int) -> LinRelation:
-    beta = 8
+    # beta = \sqrt(v_square)
+    beta = isqrt(lin.v_square)
     l = get_l(beta, b)
 
     #
