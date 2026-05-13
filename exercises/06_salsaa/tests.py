@@ -7,7 +7,7 @@ import itertools
 
 from sage.all import *
 
-from ring import q, Fq, d, x, Rq, conjugate, to_centered, _gen_random_low_norm_poly
+from ring import q, Fq, d, x, Rq, conjugate, to_centered, n_hat as ring_n_hat, n as ring_n, m as ring_m, r as ring_r
 from lde import lde_poly, pad_vec_to_d_exp, tensor_product
 from relations import LinInstance, LinWitness, LinRelation
 from rok import (
@@ -21,8 +21,43 @@ from rok import (
     compose_Fq,
     decompose_W,
 )
-from salsaa import fold as salsaa_fold, gen_random_W, gen_random_F, gen_H
-from ring import n_hat as ring_n_hat, n as ring_n, m as ring_m, r as ring_r, beta as ring_beta
+from salsaa import fold as salsaa_fold
+
+
+def gen_random_W(_m: int, _r: int):
+    # # Hardcoded for debugging
+    # W = matrix(Rq, [
+    #     [16*x**2 + 16*x + 1,       x**2 + 16*x + 1],
+    #     [16*x**3 + 16*x + 1,           16*x**2 + 1],
+    # ])
+    # assert W.nrows() == m
+    # assert W.ncols() == r
+    # return W
+    MS = MatrixSpace(Rq, _m, _r)
+
+    def _gen_random_low_norm_poly(Rq):
+        import random
+        x = Rq.gen()
+        d = Rq.modulus().degree()
+        # avoid 0
+        poly = 0
+        while poly == 0:
+            poly = sum([random.randint(-1, 1) * x**i for i in range(d)])
+        return poly
+    W = MS([ _gen_random_low_norm_poly(Rq) for _ in range(_m * _r) ])
+    return W
+
+
+def gen_random_F(_n: int, _m: int):
+    MS = MatrixSpace(Rq, _n, _m)
+    F = MS([Rq.random_element() for _ in range(_n * _m) ])
+    return F
+
+
+def gen_H(_n_hat: int, _n: int):
+    MS = MatrixSpace(Rq, _n_hat, _n)
+    H = MS.identity_matrix()
+    return H
 
 
 # ============================================================
@@ -442,13 +477,10 @@ def _make_lins_for_salsaa_fold(L: int = 2):
       F_eval = None                    (matches main(): commitment-only, no eval rows yet)
       Y = H · F_com · W                (computed per instance)
 
-    Norm budget (paper convention — β is unsquared column L2 bound):
-      per-coeff L∞ ≤ 1, d coeffs per ring entry, m ring entries per column
-      ⇒ β = √(m · d)    (column L2 bound)
     """
     H = gen_H(ring_n_hat, ring_n)
     F_com = gen_random_F(ring_n, ring_m)   # shared across all L
-    beta = isqrt(ring_m * d)
+    beta = isqrt(ring_m * d)                # column σ-2 bound declared to LinInstance
 
     lins = []
     for _ in range(L):

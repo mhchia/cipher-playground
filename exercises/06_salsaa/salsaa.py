@@ -1,5 +1,5 @@
 """
-SALSAA — Lattice-based Folding Scheme. Top-level driver.
+Lattice-based Folding Scheme in SALSAA
 
 Module layout:
   ring.py        — R_q setup, parameters, conjugate
@@ -10,40 +10,12 @@ Module layout:
   salsaa.py      — main driver (this file)
 """
 from sage.all import *
-from ring import n_hat, n, d, m, r, _gen_random_low_norm_poly, Rq, beta
+from ring import d
 from rok import rok_norm, rok_join, rok_rp, rok_fold, rok_batch, rok_decompose, get_l
-from relations import (
-    LinInstance, LinWitness, LinRelation,
-)
+from relations import LinRelation
 
 
-def gen_random_W(_m: int, _r: int):
-    # # Hardcoded for debugging
-    # W = matrix(Rq, [
-    #     [16*x**2 + 16*x + 1,       x**2 + 16*x + 1],
-    #     [16*x**3 + 16*x + 1,           16*x**2 + 1],
-    # ])
-    # assert W.nrows() == m
-    # assert W.ncols() == r
-    # return W
-    MS = MatrixSpace(Rq, _m, _r)
-    W = MS([ _gen_random_low_norm_poly(Rq, beta) for _ in range(_m * _r) ])
-    return W
-
-
-def gen_random_F(_n: int, _m: int):
-    MS = MatrixSpace(Rq, _n, _m)
-    F = MS([Rq.random_element() for _ in range(_n * _m) ])
-    return F
-
-
-def gen_H(_n_hat: int, _n: int):
-    MS = MatrixSpace(Rq, _n_hat, _n)
-    H = MS.identity_matrix()
-    return H
-
-
-def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
+def fold(lins: list[LinRelation], b=2, n_rp=1) -> LinRelation:
     """
     The whole chain of folding schmeme in SALSAA paper.
     Π^join → Π^norm → Π^⊗RP → Π^fold → Π^join → Π^batch → Π^b-decomp
@@ -54,7 +26,6 @@ def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
     Params
     - lins: L instances to be folded
     - b (default=2): `b` in b-ary decomposition
-    - r_out (default=1): `r_out` relation = 1
     - n_rp (default=1): the n_{rp} in rok rp. `n_rp` should be a security parameter
         - TODO: choose a proper number
     """
@@ -107,6 +78,7 @@ def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
     # Fold
     #
     # Fold the witnesses of the main statements and output `r_out` relation
+    r_out = 1
     lin_folded = rok_fold(lin_orig, r_out=r_out)
 
     assert lin_folded.hat_n == lin_joined.hat_n + 3

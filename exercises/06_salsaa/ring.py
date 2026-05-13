@@ -8,9 +8,6 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent / "04_ajtai"))
 
 from sage.all import *
-from ajtai import setup as ajtai_setup, commit as ajtai_commit
-from ajtai import _gen_random_low_norm_poly, _gen_random_low_norm_witness
-from ajtai import _l_inf_norm_Rq, _l_inf_norm_vec
 
 
 # ============================================================
