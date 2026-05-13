@@ -61,7 +61,7 @@ def rok_fold(lin: LinRelation, r_out: int) -> LinRelation:
     # Since C_ij is low-norm, e.g. 1+x+...+x^{d-1}
     # |C_ij * W_i| <= d * |W_i| = d * \beta
     # |W| = |\sum_{i=1}^r C_ij * W_i| <= r * d * \beta
-    v_square = (r_in * d) ** 2 * lin.v_square
+    new_beta = r_in * d * lin.beta
 
     return LinRelation(
         instance=LinInstance(
@@ -69,7 +69,7 @@ def rok_fold(lin: LinRelation, r_out: int) -> LinRelation:
             F_com=F_com,
             F_eval=F_eval,
             Y=Y_tilde,
-            v_square=v_square,
+            beta=new_beta,
         ),
         witness=LinWitness(W_tilde),
     )

@@ -81,7 +81,7 @@ def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
     assert lin_normed.n == lin_joined.n + 2
     assert lin_normed.m == lin_joined.m
     assert lin_normed.r == lin_joined.r
-    assert lin_normed.v_square == lin_joined.v_square
+    assert lin_normed.beta == lin_joined.beta
 
     #
     # ⊗RP: Perform Johnson-Lindenstrauss to improve soundness without using
@@ -94,14 +94,14 @@ def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
     assert lin_orig.n == lin_joined.n + 3
     assert lin_orig.m == lin_joined.m
     assert lin_orig.r == lin_joined.r
-    assert lin_orig.v_square == lin_joined.v_square
+    assert lin_orig.beta == lin_joined.beta
 
     # Check lin_w_hat
     assert lin_w_hat.hat_n == lin_joined.n_top + 1
     assert lin_w_hat.n == lin_joined.n_top + 1
     assert lin_w_hat.m == lin_joined.m
     assert lin_w_hat.r == 1
-    assert lin_w_hat.v_square > lin_joined.v_square
+    assert lin_w_hat.beta > lin_joined.beta
 
     #
     # Fold
@@ -113,7 +113,7 @@ def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
     assert lin_folded.n == lin_joined.n + 3
     assert lin_folded.m == lin_joined.m
     assert lin_folded.r == 1
-    assert lin_folded.v_square > lin_orig.v_square
+    assert lin_folded.beta > lin_orig.beta
 
     #
     # Merge (Join) the relation from ⊗RP (w_hat) and the one from Fold
@@ -125,7 +125,7 @@ def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
     assert lin_merged.m == lin_joined.m
     assert lin_merged.r == 2
     # Unchanged
-    assert lin_merged.v_square == lin_folded.v_square
+    assert lin_merged.beta == lin_folded.beta
 
     #
     # Batch evaluation statements (rows in HF) into less statements
@@ -140,7 +140,7 @@ def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
     assert lin_batched.m == lin_joined.m
     assert lin_batched.r == 2
     # Unchanged
-    assert lin_batched.v_square == lin_merged.v_square
+    assert lin_batched.beta == lin_merged.beta
 
     #
     # b-ary decomposition to lower the norm bound back
@@ -151,18 +151,17 @@ def fold(lins: list[LinRelation], b=2, r_out=1, n_rp=1) -> LinRelation:
     assert lin_decomposed.n == lin_joined.n + 4
     assert lin_decomposed.m == lin_joined.m
 
-    l = get_l(isqrt(lin_batched.v_square), b)
+    l = get_l(lin_batched.beta, b)
     # New Y is \tilde Z = [Z_0 || ... || Z_{l-1}]
     # and Z_i \in R^{m x r_old}, so r_new is `r_old * l`
     assert lin_decomposed.r == lin_batched.r * l
 
+    # Per-coeff \in [-b/2, b/2], m*d coeffs per column -> \beta <= (b/2) * \sqrt{md}
+    assert lin_decomposed.beta == (b // 2) * isqrt(lin_decomposed.m * d)
 
-    # each coeff \in [-b/2, b/2], one Rq has d coeffs, and one column has m Rqs
-    assert lin_decomposed.v_square == lin_decomposed.m * d * ((b // 2) ** 2)
-
-    assert lin_decomposed.v_square <= lin_joined.v_square, \
+    assert lin_decomposed.beta <= lin_joined.beta, \
         "norm budget must not exceed round-start (else next round won't compose)"
 
-    print(f"salsaa.fold finished! Norm^2 goes down: {lin_merged.v_square} → {lin_decomposed.v_square}. Original norm^2: {lin_joined.v_square}")
+    print(f"salsaa.fold finished! β goes down: {lin_merged.beta} → {lin_decomposed.beta}. Original β: {lin_joined.beta}")
 
     return lin_decomposed

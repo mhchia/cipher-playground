@@ -30,6 +30,14 @@ Requires [SageMath](https://www.sagemath.org/) ≥ 10.
 sage -python exercises/06_salsaa/tests.py
 ```
 
+## To-Dos
+
+Must
+- [ ] Check parameters for security: q, d, n_rp
+
+Better
+- [ ] RoK batch to batch+
+
 
 ## References
 

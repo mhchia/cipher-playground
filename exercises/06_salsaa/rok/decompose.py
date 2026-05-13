@@ -73,8 +73,7 @@ def decompose_W(W: matrix, b: int, l: int) -> list[matrix]:
 
 
 def rok_decompose(lin: LinRelation, b: int) -> LinRelation:
-    # beta = \sqrt(v_square)
-    beta = isqrt(lin.v_square)
+    beta = lin.beta
     l = get_l(beta, b)
 
     #
@@ -107,15 +106,17 @@ def rok_decompose(lin: LinRelation, b: int) -> LinRelation:
     for Z_k in Zs[1:]:
         Z_tilde = Z_tilde.augment(Z_k)
 
-    new_v_square = lin.m * d * ((b // 2)**2)
-    # Verfy H*F*Z_tilde = Y_tilde
+    # Per-coefficient bound after balanced b-ary decomp: [-b/2, b/2].
+    # Column l_2^2 <= m * d * (b//2)^2, so \beta <= \floor{b/2} * \sqrt{m*d}
+    # Uses isqrt so it'll be always integer (floor is used when m*d is not a square)
+    new_beta = (b // 2) * isqrt(lin.m * d)
     return LinRelation(
         instance=LinInstance(
             H=H,
             F_com=lin.instance.F_com,
             F_eval=lin.instance.F_eval,
             Y=Z_tilde,
-            v_square=new_v_square,
+            beta=new_beta,
         ),
         witness=LinWitness(W=V_tilde),
     )

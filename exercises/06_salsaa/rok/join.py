@@ -64,9 +64,9 @@ def rok_join(lin_0: LinRelation, lin_1: LinRelation) -> LinRelation:
     W_new = W_0.augment(W_1)
 
     # \beta = max(\beta_1, \beta_2)
-    new_v_square = max(lin_0.v_square, lin_1.v_square)
+    new_beta = max(lin_0.beta, lin_1.beta)
     lin_joined = LinRelation(
-        LinInstance(H_new, F_0_top, F_new_bot, Y_new, new_v_square),
+        LinInstance(H_new, F_0_top, F_new_bot, Y_new, new_beta),
         LinWitness(W_new),
     )
 

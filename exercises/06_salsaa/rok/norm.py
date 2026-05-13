@@ -17,7 +17,7 @@ from ring import (
     q, d, Fq, Rq, x, e, D,
     conjugate
 )
-from relations import LinInstance, LinRelation, LinWitness
+from relations import LinRelation
 from lde import lde_poly, tensor_product
 from sumcheck import sumcheck
 
@@ -39,7 +39,6 @@ def rok_bar_sum(r: int, t: list[Rq], W: matrix) -> tuple[tuple[list[Rq], list[Rq
     # So in total there are r*d/e slots (F_{q^e})
     # u^T: [u^0, u^1, ..., u^{rd/e}]
     u_T = get_u_vec(Fq, r, d, e)
-    print(f"{u_T=}")
 
     # [t_{0,0}, ..., t_{0,d/e}, ..., t_{r-1,0}, ..., t_{r-1,d/e}]
     t_ntt = [
@@ -59,17 +58,12 @@ def rok_bar_sum(r: int, t: list[Rq], W: matrix) -> tuple[tuple[list[Rq], list[Rq
     # We handle one column a time, and concatenate all of them in the end.
     def calculate_CRT_LDE_w_LDE_bar_w(col_idx: int):
         w = W.column(col_idx)
-        print(f"{w=}")
         w_bar = vector(Rq, [conjugate(w_i) for w_i in w])
-        print(f"{w_bar=}")
         # Calculate LDE[w_i]
         lde_w, xs = lde_poly(w, D)
         # Calculate LDE[\bar w_i]
         lde_w_bar, _ = lde_poly(w_bar, D)
-        print(f"{lde_w=}")
-        print(f"{lde_w_bar=}")
         lde_w_times_w_bar = lde_w * lde_w_bar
-        print(f"{lde_w_times_w_bar=}")
 
         # \tilde f (x_0, x_1) = A + B x_0 + C x_1 + D x_0 x_1  , A, B, C, D \in R_q
         # NOTE: poly.coefficients() and monomials() order mismatch!
@@ -129,13 +123,11 @@ def rok_bar_sum(r: int, t: list[Rq], W: matrix) -> tuple[tuple[list[Rq], list[Rq
         u_i * tilde_f_i
         for u_i, tilde_f_i in zip(u_T, crt_LDE_W_LDE_bar_W)
     ])
-    print(f"{tilde_f=}")
 
     #
     # Prover <> Verifier on sumcheck
     #
     a_l, rands = sumcheck(tilde_f, xs, a_0, D)
-    print(f"sumcheck: {a_0=}, {a_l=}, {rands=}")
 
 
     #
@@ -163,7 +155,6 @@ def rok_bar_sum(r: int, t: list[Rq], W: matrix) -> tuple[tuple[list[Rq], list[Rq
                 for i, c in enumerate(r_coeffs)
             ])
         )
-    print(f"{r_T=}")
 
     # evaluate s_0 = LDE[W](r) \in R_q^r
     s0_rqs = [
@@ -171,7 +162,6 @@ def rok_bar_sum(r: int, t: list[Rq], W: matrix) -> tuple[tuple[list[Rq], list[Rq
         for lde_w_i in lde_W
     ]
     # s_0_ntts = [ntt(rq.list(), Rq) for rq in s_0_rqs]
-    print(f"{s0_rqs=}")
 
     # evaluate s_1 = LDE[W](\bar r) \in R_q^r
     r_T_bar = [conjugate(r_T[j]) for j in range(l)]
@@ -180,7 +170,6 @@ def rok_bar_sum(r: int, t: list[Rq], W: matrix) -> tuple[tuple[list[Rq], list[Rq
         for lde_w_i in lde_W
     ]
     # s_1_bar_ntts = [ntt(rq.list(), Rq) for rq in s_1_bar_rqs]
-    print(f"{s1_rqs=}")
     assert len(s0_rqs) == len(s1_rqs)
 
     # Prover sends s_0, s_1 to Verifier
@@ -194,13 +183,11 @@ def rok_bar_sum(r: int, t: list[Rq], W: matrix) -> tuple[tuple[list[Rq], list[Rq
         a * conjugate(b)
         for a, b in zip(s0_rqs, s1_rqs)
     ]
-    print(f"{s0_s1_bar_rqs=}")
 
     # CRT(s_0 * \bar s_1)
     s0_s1_bar_ntts = []
     for rq in s0_s1_bar_rqs:
         s0_s1_bar_ntts.extend(ntt(rq.list(), Rq))
-    print(f"{s0_s1_bar_ntts=}")
 
     # rhs = u^T * CRT(s_0 * \bar s_1)
     assert len(u_T) == len(s0_s1_bar_ntts), "u^T length mismatch s0_s1_bar_ntts"
@@ -236,32 +223,26 @@ def rok_norm(lin_r: LinRelation) -> LinRelation:
             for j in range(m)
         ])
         t.append(t_i)
-    print(f"{t=}")
 
     # Sends t to V
 
     #
-    # Verifier
+    # Verifier: check <w_i, \bar w_i> <= \mu^2
     #
 
-    # # Paper version:
-    # # Since t_i = <w_i, \bar w_i> \forall i \in [m]
-    # # Trace(t_i) = d * ct(t_i)
-    # for i in range(r):
-    #     trace_t_i = d * int(t[i].list()[0])
-    #     assert trace_t_i <= v ** 2, f"Trace(t_i) is not <= v^2: {trace_t_i=}, {v=}"
-
-    # Current version to simplify
-    # Since t_i = <w_i, \bar w_i> \forall i \in [m]
-    # ct(t_i) = |w_i|^2, and should be \lte \beta^2
+    # 1. Prover sends t and claims t_i = <w_i, \bar_i>
+    # Verifier checks these t_i are <= \mu^2
+    mu_square = d * (lin_r.beta ** 2)
     for i in range(r):
-        norm_w_i_square = t[i].list()[0]
-        assert norm_w_i_square <= lin_r.v_square, f"norm_w_i_square is not <= v^2: {norm_w_i_square=}, {v_square=}"
+        # Trace(t_i) = d * ct(t_i)
+        trace_t_i = d * int(t[i].list()[0])
+        assert trace_t_i <= mu_square, f"Trace(t_i) is not <= \mu^2: {trace_t_i=}, {mu_square=}"
 
-    # P and V go on to rok \bar sum
+    # 2. P <-> V: Prover reduces "t_i really equals <w_i, \bar w_i>" to
+    #  "LDE[W](r_0) = s_0 and LDE[W](r_1) = s_1" with `rok_bar_sum`
     (r_0, s_0), (r_1, s_1) = rok_bar_sum(r, t, W)
 
-    # Embed s_1, s_2 into HFW = Y
+    # 3. Embed s_1, s_2 into the existing relation HFW = Y
     new_F_rows = matrix(Rq, [
         tensor_product(r_0, D),
         tensor_product(r_1, D),
@@ -270,7 +251,6 @@ def rok_norm(lin_r: LinRelation) -> LinRelation:
         s_0,
         s_1,
     ])
-    print(f"{new_Y_rows.nrows()=}, {new_Y_rows.ncols()=},{new_Y_rows=}")
     lin_r_new = LinRelation(
         instance=lin_r.instance.with_extra_eval(
             new_F_rows=new_F_rows,

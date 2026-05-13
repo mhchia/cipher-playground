@@ -5,6 +5,8 @@ from relations import LinRelation, LinInstance, LinWitness
 from ring import Rq
 
 
+# TODO: use batch+ in p.34 to reduce n further? It requires another sumcheck.
+
 def rok_batch(lin: LinRelation, n_target_eval_rows: int) -> LinRelation:
     """
     Batch evaluation statements into smaller statements.
@@ -56,7 +58,7 @@ def rok_batch(lin: LinRelation, n_target_eval_rows: int) -> LinRelation:
             F_com=lin.instance.F_com,
             F_eval=lin.instance.F_eval,
             Y=Y_tilde,
-            v_square=lin.v_square,
+            beta=lin.beta,
         ),
         LinWitness(W=lin.witness.W)
     )

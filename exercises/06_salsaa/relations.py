@@ -28,9 +28,10 @@ def _assert_matrix(name, obj):
 
 # ============================================================
 # Σ^lin: linear relation with column-wise L2 norm bound
-# ((H, F, Y, ν), W) ∈ Σ^lin  iff  H · F · W = Y mod q  and
-#   max_i ‖w_i‖₂² ≤ ν²    (paper notation: ‖W‖_{σ,2} ≤ ν)
+# ((H, F, Y, β), W) ∈ Σ^lin  iff  H · F · W = Y mod q  and
+#   max_i ‖w_i‖₂ ≤ β    (paper notation; β is the column L2 norm bound)
 # where w_i is the i-th column of W viewed as concatenated coefficient vector.
+# β is stored unsquared; the dataclass invariant compares `max_col_norm² ≤ β²`.
 # ============================================================
 @dataclass(frozen=True)
 class LinInstance:
@@ -40,7 +41,7 @@ class LinInstance:
     # Lower F, evaluation
     F_eval: Any  # \underbar n x m in R_q
     Y: Any   # n̂ × r in R_q
-    v_square: int
+    beta: int    # column L2 norm bound: max_i ‖w_i‖₂ ≤ beta (unsquared)
 
     @property
     def F(self):
@@ -149,7 +150,8 @@ class LinRelation:
                     cv = to_centered(c)
                     col_norm_square += cv * cv
             max_col_norm_square = max(col_norm_square, max_col_norm_square)
-        assert max_col_norm_square <= self.instance.v_square
+        assert max_col_norm_square <= self.instance.beta ** 2, \
+            f"column l_2 norm^2 = {max_col_norm_square} > \\beta² = {self.instance.beta ** 2}"
 
     @property
     def hat_n(self):
@@ -172,5 +174,5 @@ class LinRelation:
         return self.instance.r
 
     @property
-    def v_square(self):
-        return self.instance.v_square
+    def beta(self):
+        return self.instance.beta

@@ -112,7 +112,7 @@ def rok_rp(lin: LinRelation, n_rp: int, m_rp: int) -> tuple[LinRelation, LinRela
     assert Y_tilde.ncols() == r
 
     lin_orig = LinRelation(
-        LinInstance(H=H_tilde, F_com=F_com, F_eval=F_eval_tilde, Y=Y_tilde, v_square=lin.v_square),
+        LinInstance(H=H_tilde, F_com=F_com, F_eval=F_eval_tilde, Y=Y_tilde, beta=lin.beta),
         LinWitness(W=W),
     )
 
@@ -125,7 +125,7 @@ def rok_rp(lin: LinRelation, n_rp: int, m_rp: int) -> tuple[LinRelation, LinRela
     assert y_hat.ncols() == 1
 
     # \hat \beta = m_rp * \beta
-    v_square_new = m_rp**2 * lin.v_square
+    new_beta = m_rp * lin.beta
 
     lin_w_hat = LinRelation(
         LinInstance(
@@ -133,7 +133,7 @@ def rok_rp(lin: LinRelation, n_rp: int, m_rp: int) -> tuple[LinRelation, LinRela
             F_com=F_com,
             F_eval=F_eval_hat,
             Y=y_hat,
-            v_square=v_square_new,
+            beta=new_beta,
         ),
         LinWitness(W=matrix(Rq, w_hat).transpose()),
     )

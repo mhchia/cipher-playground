@@ -192,7 +192,7 @@ def _make_lin_relation_with_eval(variant: int = 0):
     Y = H * F_com.stack(F_eval) * W
 
     return LinRelation(
-        instance=LinInstance(H=H, F_com=F_com, F_eval=F_eval, Y=Y, v_square=16),
+        instance=LinInstance(H=H, F_com=F_com, F_eval=F_eval, Y=Y, beta=4),
         witness=LinWitness(W),
     )
 
@@ -239,9 +239,9 @@ def test_rok_join_smoke():
     assert joined.n == n_top + 2 * n_bot_each, \
         f"expected n={n_top + 2*n_bot_each}, got {joined.n}"
 
-    # Key invariants of join: shared commitment + v_square preserved + H square (pre-batch)
+    # Key invariants of join: shared commitment + beta preserved + H square (pre-batch)
     assert joined.instance.F_com == rel_0.instance.F_com, "F_com must be preserved"
-    assert joined.instance.v_square == rel_0.instance.v_square, "v_square must be preserved"
+    assert joined.instance.beta == rel_0.instance.beta, "beta must be preserved"
     assert joined.instance.H.nrows() == joined.instance.H.ncols(), "H stays square pre-batch"
     print("  test_rok_join_smoke: OK")
 
@@ -258,7 +258,7 @@ def _make_lin_relation_for_rp_input():
     H = identity_matrix(Rq, F_com.nrows())
     Y = H * F_com * W
     return LinRelation(
-        instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, v_square=16),
+        instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, beta=4),
         witness=LinWitness(W),
     )
 
@@ -294,7 +294,7 @@ def test_rok_rp_smoke():
 
     # The fact that both wrap as LinRelation already enforces (via __post_init__):
     #   - H · F · W = Y on each side  (algebraic correctness)
-    #   - max column ‖·‖² ≤ v_square  (norm bound)
+    #   - max column ‖·‖² ≤ beta²  (norm bound)
     # So any cross-term arithmetic bug in rok_rp would already explode above.
 
     # Commitment must be preserved on the augmented side
@@ -306,15 +306,15 @@ def test_rok_rp_smoke():
     assert aug.n == lin_in.n + 1
     assert aug.m == lin_in.m
     assert aug.r == lin_in.r
-    assert aug.v_square == lin_in.v_square
+    assert aug.beta == lin_in.beta
 
     assert proj.hat_n == lin_in.n_top + 1
     assert proj.n == lin_in.n_top + 1
     assert proj.m == lin_in.m
     # only one \hat w
     assert proj.r == 1
-    # norm bound growth: \beta_{proj} = m_{rp} * \beta_{lin}
-    assert proj.v_square == lin_in.v_square * (m_rp**2)
+    # norm bound growth: β_proj = m_rp · β_in
+    assert proj.beta == lin_in.beta * m_rp
 
     print("  test_rok_rp_smoke: OK")
 
@@ -442,21 +442,20 @@ def _make_lins_for_salsaa_fold(L: int = 2):
       F_eval = None                    (matches main(): commitment-only, no eval rows yet)
       Y = H · F_com · W                (computed per instance)
 
-    Norm budget (matches main()):
-      beta_square = d                  (each ring coef ∈ {-1, 0, 1} ⇒ ‖w_ij‖² ≤ d)
-      v_square    = m · beta_square    (m ring entries per column)
+    Norm budget (paper convention — β is unsquared column L2 bound):
+      per-coeff L∞ ≤ 1, d coeffs per ring entry, m ring entries per column
+      ⇒ β = √(m · d)    (column L2 bound)
     """
     H = gen_H(ring_n_hat, ring_n)
     F_com = gen_random_F(ring_n, ring_m)   # shared across all L
-    beta_square = d
-    v_square = ring_m * beta_square
+    beta = isqrt(ring_m * d)
 
     lins = []
     for _ in range(L):
         W = gen_random_W(ring_m, ring_r)
         Y = H * F_com * W
         lins.append(LinRelation(
-            instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, v_square=v_square),
+            instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, beta=beta),
             witness=LinWitness(W),
         ))
     return lins
@@ -505,7 +504,7 @@ def test_salsaa_fold_smoke():
 
     # The LinRelation __post_init__ has already validated:
     #   - H · F · W = Y  on the output (chain produces a valid relation)
-    #   - col_norm² ≤ v_square  (norm bounds were tracked correctly through the chain)
+    #   - col_norm² ≤ beta²  (norm bounds were tracked correctly through the chain)
     # If any sub-protocol's bound is too tight or any algebra is wrong, the
     # offending step's __post_init__ explodes here with a precise message.
 
@@ -524,7 +523,7 @@ def test_rok_decompose_smoke():
         Ŵ = (V_0 | V_1 | ... | V_{ℓ-1})    r grows: r → ℓ·r
         Ŷ = (Z_0 | Z_1 | ... | Z_{ℓ-1})    where Z_k = H·F·V_k
         H, F, m, n, hat_n preserved
-        v_square shrinks (per-entry coefficients tighten)
+        beta shrinks (per-entry coefficients tighten)
 
     NOTE: TDD-style — will FAIL until rok_decompose is implemented.
     Assumes signature `rok_decompose(lin, b)` mirroring the param pattern
@@ -552,7 +551,7 @@ def test_rok_decompose_smoke():
     assert out.instance.H == lin_in.instance.H, "H must be preserved"
 
     # Witness width grew by an integer factor (= ℓ > 1 for non-trivial β/b).
-    # For the test fixture (v_square = 16 ⇒ β = 4) and b = 2, ℓ = ⌈log_2(9)⌉ = 4.
+    # For the test fixture (β = 4) and b = 2, ℓ = ⌈log_2(9)⌉ = 4.
     assert out.r > lin_in.r, \
         f"r must strictly grow (decomp must widen witness for β > ⌊b/2⌋): {lin_in.r} → {out.r}"
     assert out.r % lin_in.r == 0, \
@@ -560,15 +559,15 @@ def test_rok_decompose_smoke():
     ell = out.r // lin_in.r
     assert ell > 1, f"ℓ must be > 1 for non-trivial decomposition, got {ell}"
 
-    # v_square should not increase (per-entry bound tightens with decomposition).
+    # beta should not increase (per-entry bound tightens with decomposition).
     # The LinRelation __post_init__ has already validated that the *actual* column
-    # norms of Ŵ fit within out.v_square, so this is just a sanity bound.
-    assert out.v_square <= lin_in.v_square, \
-        f"v_square must not grow: {lin_in.v_square} → {out.v_square}"
+    # norms of Ŵ fit within out.beta, so this is just a sanity bound.
+    assert out.beta <= lin_in.beta, \
+        f"beta must not grow: {lin_in.beta} → {out.beta}"
 
     # The LinRelation __post_init__ has already validated:
     #   - H · F · Ŵ = Ŷ                       (decomp arithmetic consistent)
-    #   - max_k ‖V_k‖² ≤ out.v_square           (each level fits the tighter bound)
+    #   - max_k ‖V_k‖² ≤ out.beta           (each level fits the tighter bound)
 
     print("  test_rok_decompose_smoke: OK")
 
@@ -580,7 +579,7 @@ def test_rok_batch_smoke():
     Collapses the evaluation rows of H from `n̂ - n̄` down to `n_target_eval_rows`
     by random linear combination (Vandermonde-like in c), applied symmetrically
     to Y. The top `n̄` (commitment) rows of H are preserved as-is. F (both F_com
-    and F_eval), W, m, r, v_square all preserved — batch only acts on H and Y.
+    and F_eval), W, m, r, beta all preserved — batch only acts on H and Y.
 
     NOTE: TDD-style — will FAIL until rok_batch is implemented.
     """
@@ -614,13 +613,13 @@ def test_rok_batch_smoke():
     # W unchanged — batch restates the same witness with fewer rows in H/Y
     assert out.witness.W == lin_in.witness.W, "W must be preserved"
 
-    # v_square preserved (W is the same)
-    assert out.v_square == lin_in.v_square, \
-        f"v_square should be preserved (W unchanged): {lin_in.v_square} → {out.v_square}"
+    # beta preserved (W is the same)
+    assert out.beta == lin_in.beta, \
+        f"beta should be preserved (W unchanged): {lin_in.beta} → {out.beta}"
 
     # The LinRelation __post_init__ has already validated:
     #   - H' · F · W = Y'   (so the random combination was applied consistently)
-    #   - column norm² ≤ v_square (still holds since W unchanged)
+    #   - column norm² ≤ beta² (still holds since W unchanged)
     # i.e., if rok_batch combines H/Y inconsistently, this test explodes in
     # __post_init__ with "relation doesn't hold".
 
@@ -667,7 +666,7 @@ def test_rok_fold_smoke():
 
     # The LinRelation __post_init__ has already validated:
     #   - H · F · Ŵ = Ŷ
-    #   - column norm² ≤ v_square (so v_square is at least sufficient)
+    #   - column norm² ≤ beta² (so beta is at least sufficient)
     # i.e., if rok_fold sends a wrong c-application, this test would explode in
     # __post_init__ with a precise "relation doesn't hold" message.
 
@@ -684,7 +683,7 @@ def test_lin_relation_happy():
     Y = H * F_com * W
 
     rel = LinRelation(
-        instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, v_square=16),
+        instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, beta=4),
         witness=LinWitness(W),
     )
     assert rel.hat_n == 2
@@ -705,7 +704,7 @@ def test_lin_relation_wrong_y_raises():
     raised = False
     try:
         LinRelation(
-            instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y_wrong, v_square=16),
+            instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y_wrong, beta=4),
             witness=LinWitness(W),
         )
     except AssertionError:
@@ -720,7 +719,7 @@ def test_lin_relation_norm_too_big_raises():
         [Rq(1), Rq(0), Rq(0), Rq(0)],
         [Rq(0), Rq(1), Rq(0), Rq(0)],
     ])
-    # First entry has coeff 5 (centered = 5), so ‖·‖² = 25 — exceeds v_square=16
+    # First entry has coeff 5 (centered = 5), so ‖·‖² = 25 — exceeds beta=4
     W_big = matrix(Rq, [
         [Rq(5) * x,  Rq(0)],
         [Rq(0),      Rq(0)],
@@ -732,12 +731,12 @@ def test_lin_relation_norm_too_big_raises():
     raised = False
     try:
         LinRelation(
-            instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, v_square=16),
+            instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, beta=4),
             witness=LinWitness(W_big),
         )
     except AssertionError:
         raised = True
-    assert raised, "LinRelation should have raised when col_norm² > v_square"
+    assert raised, "LinRelation should have raised when col_norm² > beta²"
     print("  test_lin_relation_norm_too_big_raises: OK")
 
 
@@ -751,7 +750,7 @@ def test_lin_instance_mismatched_widths_raises():
 
     raised = False
     try:
-        LinInstance(H=H, F_com=F_com, F_eval=F_eval, Y=Y, v_square=16)
+        LinInstance(H=H, F_com=F_com, F_eval=F_eval, Y=Y, beta=4)
     except AssertionError:
         raised = True
     assert raised, "LinInstance should have raised for mismatched F_com / F_eval widths"
@@ -771,7 +770,7 @@ def test_lin_relation_dimensions_asymmetric():
     Y = H * F_com * W                                                    # 3 × 2
 
     rel = LinRelation(
-        instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, v_square=16),
+        instance=LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, beta=4),
         witness=LinWitness(W),
     )
     assert rel.hat_n == 3
@@ -790,7 +789,7 @@ def test_with_extra_eval_dimensions():
     ])
     W = _make_small_norm_W()
     Y = H * F_com * W
-    inst = LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, v_square=16)
+    inst = LinInstance(H=H, F_com=F_com, F_eval=None, Y=Y, beta=4)
 
     # 2 new eval rows; new_Y_rows must be consistent with H_new being identity-extended
     new_F_rows = matrix(Rq, [
