@@ -29,11 +29,12 @@ def vec(W: matrix):
 
 def rok_rp(lin: LinRelation, n_rp: int, m_rp: int) -> tuple[LinRelation, LinRelation]:
     """
-    Prover proves W satisfying FW=Y with |w| <= beta using Johnson-Lindenstrauss
+    Prover proves W satisfying FW=Y with |W| <= beta using Johnson-Lindenstrauss
     random projection.
-    Returns
-    - lin_orig:  original `lin` plus JL
-    - lin_w_hat: \hat w commitment and its low norm
+    Returns 2 relations
+    - lin_orig:  original `lin` + "\hat W commitment is r"
+    - lin_w_hat: Commitment of projected W and it's within a new norm bound \hat beta
+    two relations are chained by `r_vec`, and RLC is used to compress new statements.
     """
 
     n_hat, m, n, n_top, r, F_com, F_eval, H, Y = lin.hat_n, lin.m, lin.n, lin.n_top, lin.r, lin.instance.F_com, lin.instance.F_eval, lin.instance.H, lin.instance.Y
@@ -79,7 +80,7 @@ def rok_rp(lin: LinRelation, n_rp: int, m_rp: int) -> tuple[LinRelation, LinRela
     # Sends c to Prover
 
     #
-    # Prover
+    # Both
     #
     # 5-8. Calculate c_0, c_1, and \vec c_0, \vec c_1,
     c_0, c_1 = c ** m_prime, c
@@ -89,6 +90,9 @@ def rok_rp(lin: LinRelation, n_rp: int, m_rp: int) -> tuple[LinRelation, LinRela
     c_vec = c_0_vec.tensor_product(c_1_vec).list()
     assert len(c_vec) == m
 
+    #
+    # Prover
+    #
     # 9. Calculate \vec r
     r_vec = c_1_vec * W_hat
     # Send `r_vec` to Verifier
@@ -116,7 +120,7 @@ def rok_rp(lin: LinRelation, n_rp: int, m_rp: int) -> tuple[LinRelation, LinRela
         LinWitness(W=W),
     )
 
-    # 10.1. I [F_top] w_hat = [z_bar      ]
+    # 10.2. I [F_top] w_hat = [z_bar      ]
     #         [c_vec]         [c_0_vec * r]
 
     F_eval_hat = matrix(Rq, [c_vec])

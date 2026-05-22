@@ -106,13 +106,6 @@ class LinWitness:
     def __post_init__(self):
         _assert_matrix("W", self.W)
 
-    def with_extra_cols(self, new_w_cols):
-        """
-        Append eval rows
-        """
-        new_W = self.W.augment(new_w_cols)
-        return replace(self, W=new_W)
-
     @property
     def m(self):
         return self.W.nrows()
